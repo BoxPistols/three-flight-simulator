@@ -1,21 +1,12 @@
-'use client'
+'use client';
 
-import { CacheProvider } from '@emotion/react'
-import createCache from '@emotion/cache'
-import { ReactNode } from 'react'
+import { CacheProvider } from '@emotion/react';
+import createCache from '@emotion/cache';
+import { ReactNode } from 'react';
 
-interface EmotionProviderProps {
-  children: ReactNode
+const cache = createCache({ key: 'css', prepend: true });
+cache.compat = true;
+
+export default function EmotionProvider({ children }: { children: ReactNode }) {
+  return <CacheProvider value={cache}>{children}</CacheProvider>;
 }
-
-export default function EmotionProvider({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  const cache = createCache({ key: 'css', prepend: true })
-  cache.compat = true
-
-  return <CacheProvider value={cache}>{children}</CacheProvider>
-}
-3

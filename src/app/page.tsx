@@ -1,103 +1,134 @@
-import Image from "next/image";
+'use client';
+
+import dynamic from 'next/dynamic';
+import { useState, useEffect } from 'react';
+import { Button, Typography, Grid } from '@mui/material';
+import { Waypoint } from '@/components/Scene';
+import WaypointEditor from '@/components/WaypointEditor';
+import { convert3DToLatLon } from '@/lib/coordinateConverter';
+
+const Scene = dynamic(() => import('@/components/Scene'), { 
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+      <Typography>3Dシーンをロード中...</Typography>
+    </div>
+  )
+});
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
+  const [isFlying, setIsFlying] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleStartFlight = () => {
+    if (waypoints.length > 1) {
+      setIsFlying(true);
+    }
+  };
+
+    const handleStopFlight = () => {
+    setIsFlying(false);
+  };
+
+  const handleFlightComplete = () => {
+    setIsFlying(false);
+  };
+
+  const handleAddWaypointFromClick = (position: [number, number, number]) => {
+    // 基準点として最初のウェイポイント、または東京駅を使用
+    const reference = waypoints.length > 0 
+      ? { latitude: waypoints[0].latitude, longitude: waypoints[0].longitude }
+      : { latitude: 35.6812, longitude: 139.7671 };
+    
+    const { latitude, longitude, altitude } = convert3DToLatLon(position[0], position[1], position[2], reference);
+    
+    const newWaypoint: Waypoint = {
+      id: Date.now().toString(),
+      latitude,
+      longitude,
+      altitude,
+      speed: 5,
+      rotation: 0
+    };
+    
+    setWaypoints([...waypoints, newWaypoint]);
+  };
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen p-4 md:p-6 bg-gray-50 flex items-center justify-center">
+        <Typography>アプリケーションを読み込み中...</Typography>
+      </div>
+    );
+  }
+
+  return (
+    <main className="h-screen flex bg-gray-50">
+      {/* サイドパネル */}
+      <div className="w-80 flex-shrink-0 p-2 bg-white shadow-lg overflow-y-auto">
+        <WaypointEditor 
+          waypoints={waypoints} 
+          setWaypoints={setWaypoints}
+        />
+        
+        <div className="mt-2">
+          {isFlying ? (
+            <Button 
+              variant="contained" 
+              color="error" 
+              onClick={handleStopFlight}
+              fullWidth
+              size="small"
+            >
+              停止
+            </Button>
+          ) : (
+            <Button 
+              variant="contained" 
+              color="primary" 
+              onClick={handleStartFlight}
+              disabled={waypoints.length < 2}
+              fullWidth
+              size="small"
+            >
+              開始 ({waypoints.length})
+            </Button>
+          )}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+        
+        <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+          <Typography variant="caption" className="font-semibold">操作:</Typography>
+          <ul className="list-disc pl-3 space-y-0 text-xs">
+            <li>3D画面をクリックでウェイポイント追加</li>
+            <li>手動入力でも追加可能</li>
+            <li>開始でドローン目線飛行</li>
+            <li>停止中はマウスで自由視点</li>
+          </ul>
+        </div>
+      </div>
+      
+      {/* メインフライト画面 */}
+      <div className="flex-1 flex flex-col">
+        <div className="h-8 bg-white border-b flex justify-between items-center px-3 text-xs">
+          <span className="font-medium">3D フライトシミュレーター</span>
+          <span className="text-gray-600">
+            {isFlying ? '🟢 実行中' : '⚪ 待機中'} | {waypoints.length} waypoints
+          </span>
+        </div>
+        <div className="flex-1">
+          <Scene 
+            waypoints={waypoints} 
+            isFlying={isFlying} 
+            onAddWaypoint={handleAddWaypointFromClick}
+            onFlightComplete={handleFlightComplete}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+        </div>
+      </div>
+    </main>
   );
 }
