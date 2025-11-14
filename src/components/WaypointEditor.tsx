@@ -155,9 +155,9 @@ export default function WaypointEditor({
   }
 
   return (
-    <Box sx={{ p: 1 }}>
-      <Typography variant='subtitle2' gutterBottom className='font-semibold'>
-        ウェイポイントエディター
+    <Box>
+      <Typography variant='subtitle1' gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
+        ウェイポイント
       </Typography>
 
       <Grid container spacing={1}>
@@ -243,7 +243,8 @@ export default function WaypointEditor({
             startIcon={<AddIcon />}
             onClick={addWaypoint}
             fullWidth
-            size='small'
+            size='medium'
+            sx={{ py: 1 }}
           >
             追加
           </Button>
@@ -253,22 +254,27 @@ export default function WaypointEditor({
             variant='outlined'
             onClick={addSampleWaypoints}
             fullWidth
-            size='small'
+            size='medium'
+            sx={{ py: 1 }}
           >
             サンプル
           </Button>
         </Grid>
       </Grid>
 
-      <TableContainer component={Paper} sx={{ mt: 1, maxHeight: 300 }}>
+      <TableContainer
+        component={Paper}
+        variant='outlined'
+        sx={{ mt: 2, maxHeight: 350, bgcolor: 'background.paper' }}
+      >
         <Table size='small' stickyHeader>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ fontSize: '0.75rem', p: 1 }}>緯度</TableCell>
-              <TableCell sx={{ fontSize: '0.75rem', p: 1 }}>経度</TableCell>
-              <TableCell sx={{ fontSize: '0.75rem', p: 1 }}>高度</TableCell>
-              <TableCell sx={{ fontSize: '0.75rem', p: 1 }}>速度</TableCell>
-              <TableCell sx={{ fontSize: '0.75rem', p: 1 }}>操作</TableCell>
+              <TableCell sx={{ fontSize: '0.75rem', p: 1, fontWeight: 600, bgcolor: 'action.hover' }}>緯度</TableCell>
+              <TableCell sx={{ fontSize: '0.75rem', p: 1, fontWeight: 600, bgcolor: 'action.hover' }}>経度</TableCell>
+              <TableCell sx={{ fontSize: '0.75rem', p: 1, fontWeight: 600, bgcolor: 'action.hover' }}>高度</TableCell>
+              <TableCell sx={{ fontSize: '0.75rem', p: 1, fontWeight: 600, bgcolor: 'action.hover' }}>速度</TableCell>
+              <TableCell sx={{ fontSize: '0.75rem', p: 1, fontWeight: 600, bgcolor: 'action.hover' }}>操作</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -310,9 +316,13 @@ export default function WaypointEditor({
                 <TableCell
                   colSpan={5}
                   align='center'
-                  sx={{ fontSize: '0.7rem', fontStyle: 'italic', p: 1 }}
+                  sx={{ fontSize: '0.75rem', fontStyle: 'italic', p: 3, color: 'text.secondary' }}
                 >
-                  ウェイポイントなし
+                  ウェイポイントが登録されていません
+                  <br />
+                  <Typography variant='caption' sx={{ mt: 1, display: 'block' }}>
+                    3D画面をクリックまたは手動で追加
+                  </Typography>
                 </TableCell>
               </TableRow>
             )}

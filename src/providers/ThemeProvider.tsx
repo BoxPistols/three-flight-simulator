@@ -51,22 +51,36 @@ export default function ThemeProvider({ children }: { children: ReactNode }) {
     palette: {
       mode,
       primary: {
-        main: mode === 'dark' ? '#90caf9' : '#1976d2',
+        main: mode === 'dark' ? '#60a5fa' : '#3b82f6', // Scene.tsxのドローンカラーと統一
       },
       secondary: {
-        main: mode === 'dark' ? '#f48fb1' : '#dc004e',
+        main: mode === 'dark' ? '#fbbf24' : '#f59e0b',
       },
       background: {
-        default: mode === 'dark' ? '#121212' : '#ffffff',
-        paper: mode === 'dark' ? '#1e1e1e' : '#ffffff',
+        default: mode === 'dark' ? '#0f172a' : '#f8fafc',
+        paper: mode === 'dark' ? '#1e293b' : '#ffffff',
+      },
+      success: {
+        main: mode === 'dark' ? '#34d399' : '#10b981',
+      },
+      error: {
+        main: mode === 'dark' ? '#f87171' : '#ef4444',
       },
     },
     components: {
       MuiCssBaseline: {
         styleOverrides: {
           body: {
-            backgroundColor: mode === 'dark' ? '#121212' : '#ffffff',
-            color: mode === 'dark' ? '#ffffff' : '#000000',
+            backgroundColor: mode === 'dark' ? '#0f172a' : '#f8fafc',
+            color: mode === 'dark' ? '#f1f5f9' : '#0f172a',
+          },
+        },
+      },
+      MuiButton: {
+        styleOverrides: {
+          root: {
+            textTransform: 'none',
+            fontWeight: 600,
           },
         },
       },
