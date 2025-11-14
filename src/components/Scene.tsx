@@ -6,6 +6,41 @@ import { useRef, useEffect, forwardRef } from 'react'
 import { convertWaypointsTo3D } from '@/lib/coordinateConverter'
 import * as THREE from 'three'
 
+// カラーパレット定義
+const COLORS = {
+  // ドローン
+  drone: {
+    body: '#3b82f6',      // 青（視認性の高い色）
+    propeller: '#1e293b', // ダークグレー
+  },
+  // ウェイポイント
+  waypoint: {
+    start: '#10b981',     // エメラルドグリーン
+    end: '#ef4444',       // 赤
+    middle: '#f59e0b',    // アンバー
+    emissive: {
+      start: '#064e3b',   // 暗いグリーン
+      end: '#7f1d1d',     // 暗い赤
+      middle: '#78350f',  // 暗いアンバー
+    },
+    pole: '#6b7280',      // グレー
+  },
+  // 建物（統一されたグレー系パレット）
+  buildings: {
+    highRise: ['#475569', '#64748b'],     // スレートグレー
+    midRise: ['#6b7280', '#9ca3af'],      // グレー
+    lowRise: ['#d1d5db', '#e5e7eb'],      // ライトグレー
+    residential: ['#94a3b8', '#cbd5e1'],  // スレートライトグレー
+  },
+  // 環境
+  environment: {
+    ground: '#a3a380',    // オリーブグリーン系
+    sky: '#7dd3fc',       // 明るいスカイブルー
+  },
+  // フライトパス
+  flightPath: '#3b82f6', // 青（ドローンと統一）
+} as const
+
 export interface Waypoint {
   id: string
   latitude: number
@@ -25,25 +60,45 @@ const DroneModel = forwardRef<
       {/* ドローン本体 */}
       <mesh>
         <boxGeometry args={[1.5, 0.4, 0.4]} />
-        <meshStandardMaterial color='#333' />
+        <meshStandardMaterial
+          color={COLORS.drone.body}
+          roughness={0.4}
+          metalness={0.6}
+        />
       </mesh>
 
       {/* プロペラ */}
       <mesh position={[1.0, 0, 0]}>
         <boxGeometry args={[0.15, 0.08, 0.6]} />
-        <meshStandardMaterial color='#666' />
+        <meshStandardMaterial
+          color={COLORS.drone.propeller}
+          roughness={0.3}
+          metalness={0.8}
+        />
       </mesh>
       <mesh position={[-1.0, 0, 0]}>
         <boxGeometry args={[0.15, 0.08, 0.6]} />
-        <meshStandardMaterial color='#666' />
+        <meshStandardMaterial
+          color={COLORS.drone.propeller}
+          roughness={0.3}
+          metalness={0.8}
+        />
       </mesh>
       <mesh position={[0, 0, 1.0]}>
         <boxGeometry args={[0.6, 0.08, 0.15]} />
-        <meshStandardMaterial color='#666' />
+        <meshStandardMaterial
+          color={COLORS.drone.propeller}
+          roughness={0.3}
+          metalness={0.8}
+        />
       </mesh>
       <mesh position={[0, 0, -1.0]}>
         <boxGeometry args={[0.6, 0.08, 0.15]} />
-        <meshStandardMaterial color='#666' />
+        <meshStandardMaterial
+          color={COLORS.drone.propeller}
+          roughness={0.3}
+          metalness={0.8}
+        />
       </mesh>
     </group>
   )
@@ -80,28 +135,31 @@ function WaypointMarkers({
               document.body.style.cursor = 'default'
             }}
           >
-            <sphereGeometry args={[0.1, 8, 8]} />
+            <sphereGeometry args={[0.15, 16, 16]} />
             <meshStandardMaterial
               color={
                 index === 0
-                  ? '#00ff00'
+                  ? COLORS.waypoint.start
                   : index === pathPoints.length - 1
-                  ? '#ff0000'
-                  : '#ff6600'
+                  ? COLORS.waypoint.end
+                  : COLORS.waypoint.middle
               }
               emissive={
                 index === 0
-                  ? '#002200'
+                  ? COLORS.waypoint.emissive.start
                   : index === pathPoints.length - 1
-                  ? '#220000'
-                  : '#221100'
+                  ? COLORS.waypoint.emissive.end
+                  : COLORS.waypoint.emissive.middle
               }
+              emissiveIntensity={0.5}
+              roughness={0.3}
+              metalness={0.4}
             />
           </mesh>
           {/* 高度を示すポール */}
           <mesh position={[0, 0.1, 0]}>
             <cylinderGeometry args={[0.02, 0.02, 0.2]} />
-            <meshStandardMaterial color='#888' />
+            <meshStandardMaterial color={COLORS.waypoint.pole} />
           </mesh>
         </group>
       ))}
@@ -129,7 +187,7 @@ function FlightPath({ waypoints }: { waypoints: Waypoint[] }) {
           args={[new Float32Array(points), 3]}
         />
       </bufferGeometry>
-      <lineBasicMaterial color='#1976d2' linewidth={3} />
+      <lineBasicMaterial color={COLORS.flightPath} linewidth={2} opacity={0.8} transparent />
     </line>
   )
 }
@@ -186,13 +244,10 @@ function AnimatedDrone({
         Math.pow(nextWaypoint.position[2] - currentWaypoint.position[2], 2)
     )
 
-    // 速度を20km/h以下に制限
-    const speed = Math.min(waypoints[currentIndexRef.current]?.speed || 15, 20) // 最大20km/hに制限
-    const speedFactor = 0.05 * visualSpeed // 係数を0.05に調整して現実的な速度に
-    const increment =
-      distance > 0
-        ? (speed * speedFactor * delta) / Math.max(distance, 1)
-        : 0.05
+    // アニメーション速度の計算をシンプルに
+    const speed = Math.min(waypoints[currentIndexRef.current]?.speed || 15, 20)
+    const baseSpeed = 0.3 // 基本速度係数
+    const increment = (speed * baseSpeed * visualSpeed * delta) / Math.max(distance, 1)
 
     progressRef.current += increment
 
@@ -314,11 +369,11 @@ function ClickableGround({
     >
       <planeGeometry args={[200, 200]} />
       <meshStandardMaterial
-        color='#8B4513'
-        roughness={0.8}
-        metalness={0.2}
+        color={COLORS.environment.ground}
+        roughness={0.9}
+        metalness={0.1}
         transparent={!isFlying}
-        opacity={isFlying ? 1 : 0.9}
+        opacity={isFlying ? 1 : 0.95}
       />
     </mesh>
   )
@@ -346,15 +401,15 @@ function DroneCamera({
       offset.applyEuler(droneRotation)
 
       const cameraPosition = dronePosition.clone().add(offset)
-      // カメラ位置をスムーズに補間
-      camera.position.lerp(cameraPosition, 0.1)
+      // カメラ位置をスムーズに補間（係数を大きくして追従を滑らかに）
+      camera.position.lerp(cameraPosition, 0.2)
 
       // ドローンの進行方向を見る
       const forward = new THREE.Vector3(0, 0, 1)
       forward.applyEuler(droneRotation)
       const lookAtPosition = dronePosition.clone().add(forward)
 
-      // lookAtもスムーズに（クォータニオンで制御）
+      // lookAtもスムーズに（クォータニオンで制御、係数を大きくして追従を滑らかに）
       const targetMatrix = new THREE.Matrix4().lookAt(
         camera.position,
         lookAtPosition,
@@ -363,7 +418,7 @@ function DroneCamera({
       const targetQuaternion = new THREE.Quaternion().setFromRotationMatrix(
         targetMatrix
       )
-      camera.quaternion.slerp(targetQuaternion, 0.1)
+      camera.quaternion.slerp(targetQuaternion, 0.2)
     }
     // !isFlyingの時は何もしない (OrbitControlsに制御を任せる)
   })
@@ -378,29 +433,29 @@ function CityBuildings() {
     size: [number, number, number]
     color: string
   }[] = [
-    // 高層ビル群
-    { position: [15, 0, 15], size: [8, 20, 8], color: '#2c3e50' },
-    { position: [-15, 0, 15], size: [6, 15, 6], color: '#34495e' },
-    { position: [15, 0, -15], size: [10, 25, 10], color: '#2c3e50' },
-    { position: [-15, 0, -15], size: [7, 18, 7], color: '#34495e' },
+    // 高層ビル群（統一されたスレートグレー）
+    { position: [15, 0, 15], size: [8, 20, 8], color: COLORS.buildings.highRise[0] },
+    { position: [-15, 0, 15], size: [6, 15, 6], color: COLORS.buildings.highRise[1] },
+    { position: [15, 0, -15], size: [10, 25, 10], color: COLORS.buildings.highRise[0] },
+    { position: [-15, 0, -15], size: [7, 18, 7], color: COLORS.buildings.highRise[1] },
 
-    // 中層ビル群
-    { position: [8, 0, 8], size: [5, 12, 5], color: '#7f8c8d' },
-    { position: [-8, 0, 8], size: [4, 10, 4], color: '#95a5a6' },
-    { position: [8, 0, -8], size: [6, 14, 6], color: '#7f8c8d' },
-    { position: [-8, 0, -8], size: [5, 11, 5], color: '#95a5a6' },
+    // 中層ビル群（グレー系）
+    { position: [8, 0, 8], size: [5, 12, 5], color: COLORS.buildings.midRise[0] },
+    { position: [-8, 0, 8], size: [4, 10, 4], color: COLORS.buildings.midRise[1] },
+    { position: [8, 0, -8], size: [6, 14, 6], color: COLORS.buildings.midRise[0] },
+    { position: [-8, 0, -8], size: [5, 11, 5], color: COLORS.buildings.midRise[1] },
 
-    // 低層ビル群
-    { position: [25, 0, 0], size: [4, 8, 4], color: '#bdc3c7' },
-    { position: [-25, 0, 0], size: [3, 6, 3], color: '#ecf0f1' },
-    { position: [0, 0, 25], size: [5, 9, 5], color: '#bdc3c7' },
-    { position: [0, 0, -25], size: [4, 7, 4], color: '#ecf0f1' },
+    // 低層ビル群（ライトグレー）
+    { position: [25, 0, 0], size: [4, 8, 4], color: COLORS.buildings.lowRise[0] },
+    { position: [-25, 0, 0], size: [3, 6, 3], color: COLORS.buildings.lowRise[1] },
+    { position: [0, 0, 25], size: [5, 9, 5], color: COLORS.buildings.lowRise[0] },
+    { position: [0, 0, -25], size: [4, 7, 4], color: COLORS.buildings.lowRise[1] },
 
-    // 住宅群
-    { position: [30, 0, 30], size: [3, 5, 3], color: '#e74c3c' },
-    { position: [-30, 0, 30], size: [2, 4, 2], color: '#e67e22' },
-    { position: [30, 0, -30], size: [2, 4, 2], color: '#f39c12' },
-    { position: [-30, 0, -30], size: [3, 5, 3], color: '#e74c3c' },
+    // 住宅群（スレートライトグレー）
+    { position: [30, 0, 30], size: [3, 5, 3], color: COLORS.buildings.residential[0] },
+    { position: [-30, 0, 30], size: [2, 4, 2], color: COLORS.buildings.residential[1] },
+    { position: [30, 0, -30], size: [2, 4, 2], color: COLORS.buildings.residential[0] },
+    { position: [-30, 0, -30], size: [3, 5, 3], color: COLORS.buildings.residential[1] },
   ]
 
   return (
@@ -911,7 +966,7 @@ export default function Scene({
       className='w-full h-full'
       camera={{ position: [20, 25, 20], fov: 45 }}
     >
-      <color attach='background' args={['#87CEEB']} />
+      <color attach='background' args={[COLORS.environment.sky]} />
       <ambientLight intensity={0.6} />
       <directionalLight position={[10, 10, 10]} intensity={1} />
       <pointLight position={[0, 10, 0]} intensity={0.5} />
