@@ -2,9 +2,10 @@
 
 import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
-import { Button, Typography, Grid, Paper, Box, Divider } from '@mui/material';
+import { Button, Typography, Grid, Paper, Box, Divider, Fade, Chip, LinearProgress } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
+import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import { Waypoint } from '@/components/Scene';
 import WaypointEditor from '@/components/WaypointEditor';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -86,19 +87,26 @@ export default function Home() {
         sx={{
           width: 320,
           flexShrink: 0,
-          p: 2,
+          p: 2.5,
           overflowY: 'auto',
           borderRadius: 0,
           display: 'flex',
           flexDirection: 'column',
-          gap: 2
+          gap: 2,
+          background: (theme) =>
+            theme.palette.mode === 'dark'
+              ? 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)'
+              : 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
         }}
       >
-        <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main' }}>
-          フライトコントロール
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <FlightTakeoffIcon sx={{ fontSize: 28, color: 'primary.main' }} />
+          <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+            フライトコントロール
+          </Typography>
+        </Box>
 
-        <Divider />
+        <Divider sx={{ my: 0.5 }} />
 
         <WaypointEditor
           waypoints={waypoints}
@@ -106,41 +114,90 @@ export default function Home() {
         />
 
         <Box sx={{ mt: 'auto', pt: 2 }}>
-          {isFlying ? (
-            <Button
-              variant="contained"
-              color="error"
-              onClick={handleStopFlight}
-              fullWidth
-              size="large"
-              startIcon={<StopIcon />}
-              sx={{ py: 1.5 }}
-            >
-              停止
-            </Button>
-          ) : (
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={handleStartFlight}
-              disabled={waypoints.length < 2}
-              fullWidth
-              size="large"
-              startIcon={<PlayArrowIcon />}
-              sx={{ py: 1.5 }}
-            >
-              フライト開始 ({waypoints.length})
-            </Button>
-          )}
+          <Fade in={true} timeout={500}>
+            <Box>
+              {isFlying && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="caption" sx={{ display: 'block', mb: 0.5, color: 'text.secondary' }}>
+                    飛行中...
+                  </Typography>
+                  <LinearProgress
+                    sx={{
+                      height: 6,
+                      borderRadius: 3,
+                      bgcolor: 'action.hover',
+                      '& .MuiLinearProgress-bar': {
+                        borderRadius: 3,
+                        background: 'linear-gradient(90deg, #10b981 0%, #3b82f6 50%, #ef4444 100%)',
+                      }
+                    }}
+                  />
+                </Box>
+              )}
+
+              {isFlying ? (
+                <Button
+                  variant="contained"
+                  color="error"
+                  onClick={handleStopFlight}
+                  fullWidth
+                  size="large"
+                  startIcon={<StopIcon />}
+                  sx={{
+                    py: 1.5,
+                    boxShadow: '0 4px 14px rgba(239, 68, 68, 0.3)',
+                  }}
+                >
+                  停止
+                </Button>
+              ) : (
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={handleStartFlight}
+                  disabled={waypoints.length < 2}
+                  fullWidth
+                  size="large"
+                  startIcon={<PlayArrowIcon />}
+                  sx={{
+                    py: 1.5,
+                    boxShadow: waypoints.length >= 2 ? '0 4px 14px rgba(59, 130, 246, 0.3)' : 'none',
+                  }}
+                >
+                  フライト開始
+                  {waypoints.length >= 2 && (
+                    <Chip
+                      label={waypoints.length}
+                      size="small"
+                      sx={{
+                        ml: 1,
+                        height: 20,
+                        fontSize: '0.75rem',
+                        bgcolor: 'rgba(255, 255, 255, 0.2)',
+                        color: 'inherit',
+                        fontWeight: 700,
+                      }}
+                    />
+                  )}
+                </Button>
+              )}
+            </Box>
+          </Fade>
 
           <Paper
             variant="outlined"
-            sx={{ mt: 2, p: 2, bgcolor: 'action.hover' }}
+            sx={{
+              mt: 2,
+              p: 2,
+              bgcolor: 'action.hover',
+              borderRadius: 2,
+              borderColor: 'divider',
+            }}
           >
-            <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 1 }}>
-              操作ガイド
+            <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 1, color: 'text.primary' }}>
+              💡 操作ガイド
             </Typography>
-            <Box component="ul" sx={{ pl: 2, m: 0, '& li': { fontSize: '0.75rem', mb: 0.5 } }}>
+            <Box component="ul" sx={{ pl: 2.5, m: 0, '& li': { fontSize: '0.75rem', mb: 0.75, color: 'text.secondary', lineHeight: 1.5 } }}>
               <li>3D画面をクリックでウェイポイント追加</li>
               <li>手動入力でも追加可能</li>
               <li>開始ボタンでドローン目線飛行</li>
@@ -155,34 +212,49 @@ export default function Home() {
         <Paper
           elevation={1}
           sx={{
-            height: 48,
+            height: 56,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             px: 3,
-            borderRadius: 0
+            borderRadius: 0,
+            borderBottom: 1,
+            borderColor: 'divider',
           }}
         >
-          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, letterSpacing: '-0.02em' }}>
             3D フライトシミュレーター
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography
-              variant="body2"
+            <Chip
+              label={isFlying ? '実行中' : '待機中'}
+              color={isFlying ? 'success' : 'default'}
+              size="small"
+              icon={isFlying ? <span style={{ fontSize: '8px' }}>🟢</span> : <span style={{ fontSize: '8px' }}>⚪</span>}
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0.5,
-                color: isFlying ? 'success.main' : 'text.secondary',
-                fontWeight: 500
+                fontWeight: 600,
+                fontSize: '0.75rem',
+                height: 28,
+                animation: isFlying ? 'pulse 2s ease-in-out infinite' : 'none',
+                '@keyframes pulse': {
+                  '0%, 100%': { opacity: 1 },
+                  '50%': { opacity: 0.7 },
+                },
               }}
-            >
-              {isFlying ? '🟢 実行中' : '⚪ 待機中'}
-            </Typography>
+            />
             <Divider orientation="vertical" flexItem />
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              {waypoints.length} waypoints
-            </Typography>
+            <Chip
+              label={`${waypoints.length} WP`}
+              size="small"
+              variant="outlined"
+              sx={{
+                fontWeight: 600,
+                fontSize: '0.75rem',
+                height: 28,
+                borderColor: waypoints.length >= 2 ? 'primary.main' : 'divider',
+                color: waypoints.length >= 2 ? 'primary.main' : 'text.secondary',
+              }}
+            />
             <Divider orientation="vertical" flexItem />
             <ThemeToggle />
           </Box>

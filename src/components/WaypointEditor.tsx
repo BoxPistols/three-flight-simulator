@@ -278,8 +278,17 @@ export default function WaypointEditor({
             </TableRow>
           </TableHead>
           <TableBody>
-            {waypoints.map((wp) => (
-              <TableRow key={wp.id}>
+            {waypoints.map((wp, index) => (
+              <TableRow
+                key={wp.id}
+                sx={{
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    bgcolor: 'action.hover',
+                    transform: 'translateX(4px)',
+                  },
+                }}
+              >
                 <TableCell sx={{ fontSize: '0.7rem', p: 0.5 }}>
                   {wp.latitude.toFixed(1)}
                 </TableCell>
@@ -297,7 +306,13 @@ export default function WaypointEditor({
                     onClick={() => editWaypoint(wp)}
                     color='primary'
                     size='small'
-                    sx={{ mr: 0.5 }}
+                    sx={{
+                      mr: 0.5,
+                      '&:hover': {
+                        bgcolor: 'primary.main',
+                        color: 'white',
+                      },
+                    }}
                   >
                     <EditIcon fontSize='small' />
                   </IconButton>
@@ -305,6 +320,12 @@ export default function WaypointEditor({
                     onClick={() => removeWaypoint(wp.id)}
                     color='error'
                     size='small'
+                    sx={{
+                      '&:hover': {
+                        bgcolor: 'error.main',
+                        color: 'white',
+                      },
+                    }}
                   >
                     <DeleteIcon fontSize='small' />
                   </IconButton>
