@@ -1,10 +1,45 @@
 'use client'
 
+import React, { useRef, useEffect, forwardRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
-import { useRef, useEffect, forwardRef } from 'react'
 import { convertWaypointsTo3D } from '@/lib/coordinateConverter'
 import * as THREE from 'three'
+
+// カラーパレット定義
+const COLORS = {
+  // ドローン
+  drone: {
+    body: '#3b82f6',      // 青（視認性の高い色）
+    propeller: '#1e293b', // ダークグレー
+  },
+  // ウェイポイント
+  waypoint: {
+    start: '#10b981',     // エメラルドグリーン
+    end: '#ef4444',       // 赤
+    middle: '#f59e0b',    // アンバー
+    emissive: {
+      start: '#064e3b',   // 暗いグリーン
+      end: '#7f1d1d',     // 暗い赤
+      middle: '#78350f',  // 暗いアンバー
+    },
+    pole: '#6b7280',      // グレー
+  },
+  // 建物（統一されたグレー系パレット）
+  buildings: {
+    highRise: ['#475569', '#64748b'],     // スレートグレー
+    midRise: ['#6b7280', '#9ca3af'],      // グレー
+    lowRise: ['#d1d5db', '#e5e7eb'],      // ライトグレー
+    residential: ['#94a3b8', '#cbd5e1'],  // スレートライトグレー
+  },
+  // 環境
+  environment: {
+    ground: '#a3a380',    // オリーブグリーン系
+    sky: '#7dd3fc',       // 明るいスカイブルー
+  },
+  // フライトパス
+  flightPath: '#3b82f6', // 青（ドローンと統一）
+} as const
 
 export interface Waypoint {
   id: string
@@ -25,25 +60,45 @@ const DroneModel = forwardRef<
       {/* ドローン本体 */}
       <mesh>
         <boxGeometry args={[1.5, 0.4, 0.4]} />
-        <meshStandardMaterial color='#333' />
+        <meshStandardMaterial
+          color={COLORS.drone.body}
+          roughness={0.4}
+          metalness={0.6}
+        />
       </mesh>
 
       {/* プロペラ */}
       <mesh position={[1.0, 0, 0]}>
         <boxGeometry args={[0.15, 0.08, 0.6]} />
-        <meshStandardMaterial color='#666' />
+        <meshStandardMaterial
+          color={COLORS.drone.propeller}
+          roughness={0.3}
+          metalness={0.8}
+        />
       </mesh>
       <mesh position={[-1.0, 0, 0]}>
         <boxGeometry args={[0.15, 0.08, 0.6]} />
-        <meshStandardMaterial color='#666' />
+        <meshStandardMaterial
+          color={COLORS.drone.propeller}
+          roughness={0.3}
+          metalness={0.8}
+        />
       </mesh>
       <mesh position={[0, 0, 1.0]}>
         <boxGeometry args={[0.6, 0.08, 0.15]} />
-        <meshStandardMaterial color='#666' />
+        <meshStandardMaterial
+          color={COLORS.drone.propeller}
+          roughness={0.3}
+          metalness={0.8}
+        />
       </mesh>
       <mesh position={[0, 0, -1.0]}>
         <boxGeometry args={[0.6, 0.08, 0.15]} />
-        <meshStandardMaterial color='#666' />
+        <meshStandardMaterial
+          color={COLORS.drone.propeller}
+          roughness={0.3}
+          metalness={0.8}
+        />
       </mesh>
     </group>
   )
@@ -54,83 +109,159 @@ DroneModel.displayName = 'DroneModel'
 function WaypointMarkers({
   waypoints,
   onRemoveWaypoint,
+  highlightedWaypointId,
 }: {
   waypoints: Waypoint[]
   onRemoveWaypoint?: (id: string) => void
+  highlightedWaypointId?: string | null
 }) {
   const pathPoints = convertWaypointsTo3D(waypoints)
 
   return (
     <>
-      {pathPoints.map((wp, index) => (
-        <group key={index} position={wp.position}>
-          {/* クリック可能なウェイポイントマーカー */}
-          <mesh
-            position={[0, 0.2, 0]}
-            onClick={(e) => {
-              e.stopPropagation()
-              if (onRemoveWaypoint) {
-                onRemoveWaypoint(waypoints[index].id)
-              }
-            }}
-            onPointerOver={() => {
-              document.body.style.cursor = 'pointer'
-            }}
-            onPointerOut={() => {
-              document.body.style.cursor = 'default'
-            }}
-          >
-            <sphereGeometry args={[0.1, 8, 8]} />
-            <meshStandardMaterial
-              color={
-                index === 0
-                  ? '#00ff00'
-                  : index === pathPoints.length - 1
-                  ? '#ff0000'
-                  : '#ff6600'
-              }
-              emissive={
-                index === 0
-                  ? '#002200'
-                  : index === pathPoints.length - 1
-                  ? '#220000'
-                  : '#221100'
-              }
-            />
-          </mesh>
-          {/* 高度を示すポール */}
-          <mesh position={[0, 0.1, 0]}>
-            <cylinderGeometry args={[0.02, 0.02, 0.2]} />
-            <meshStandardMaterial color='#888' />
-          </mesh>
-        </group>
-      ))}
+      {pathPoints.map((wp, index) => {
+        const isHighlighted = waypoints[index].id === highlightedWaypointId
+        const isStart = index === 0
+        const isEnd = index === pathPoints.length - 1
+
+        return (
+          <group key={index} position={wp.position}>
+            {/* クリック可能なウェイポイントマーカー */}
+            <mesh
+              position={[0, 0.2, 0]}
+              scale={isHighlighted ? 1.3 : 1}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (onRemoveWaypoint) {
+                  onRemoveWaypoint(waypoints[index].id)
+                }
+              }}
+              onPointerOver={() => {
+                document.body.style.cursor = 'pointer'
+              }}
+              onPointerOut={() => {
+                document.body.style.cursor = 'default'
+              }}
+            >
+              <sphereGeometry args={[0.15, 16, 16]} />
+              <meshStandardMaterial
+                color={
+                  isStart
+                    ? COLORS.waypoint.start
+                    : isEnd
+                    ? COLORS.waypoint.end
+                    : COLORS.waypoint.middle
+                }
+                emissive={
+                  isStart
+                    ? COLORS.waypoint.emissive.start
+                    : isEnd
+                    ? COLORS.waypoint.emissive.end
+                    : COLORS.waypoint.emissive.middle
+                }
+                emissiveIntensity={isHighlighted ? 1.0 : 0.5}
+                roughness={0.3}
+                metalness={0.4}
+              />
+            </mesh>
+
+            {/* ハイライト時のリング */}
+            {isHighlighted && (
+              <mesh position={[0, 0.2, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                <ringGeometry args={[0.2, 0.25, 32]} />
+                <meshBasicMaterial
+                  color={isStart ? COLORS.waypoint.start : isEnd ? COLORS.waypoint.end : COLORS.waypoint.middle}
+                  transparent
+                  opacity={0.6}
+                />
+              </mesh>
+            )}
+
+            {/* 高度を示すポール */}
+            <mesh position={[0, 0.1, 0]}>
+              <cylinderGeometry args={[0.02, 0.02, 0.2]} />
+              <meshStandardMaterial color={COLORS.waypoint.pole} />
+            </mesh>
+          </group>
+        )
+      })}
     </>
   )
 }
 
-// フライトパスを描画
-function FlightPath({ waypoints }: { waypoints: Waypoint[] }) {
+// フライトパスを描画（クリック可能な管として描画）
+function FlightPath({
+  waypoints,
+  onPathClick,
+  isFlying,
+}: {
+  waypoints: Waypoint[]
+  onPathClick?: (segmentIndex: number, clickPoint: THREE.Vector3) => void
+  isFlying?: boolean
+}) {
   if (waypoints.length < 2) return null
 
   const pathPoints = convertWaypointsTo3D(waypoints).map((wp) => wp.position)
-  const points = []
-
-  for (let i = 0; i < pathPoints.length; i++) {
-    points.push(pathPoints[i][0], pathPoints[i][1], pathPoints[i][2])
-  }
 
   return (
-    <line>
-      <bufferGeometry>
-        <bufferAttribute
-          attach='attributes-position'
-          count={pathPoints.length}
-          args={[new Float32Array(points), 3]}
-        />
-      </bufferGeometry>
-      <lineBasicMaterial color='#1976d2' linewidth={3} />
-    </line>
+    <>
+      {/* 各セグメントを個別のクリック可能な管として描画 */}
+      {pathPoints.map((point, index) => {
+        if (index === pathPoints.length - 1) return null
+
+        const start = new THREE.Vector3(...pathPoints[index])
+        const end = new THREE.Vector3(...pathPoints[index + 1])
+
+        // 中点を計算
+        const midPoint = new THREE.Vector3().lerpVectors(start, end, 0.5)
+
+        // セグメントの長さと方向を計算
+        const direction = new THREE.Vector3().subVectors(end, start)
+        const length = direction.length()
+
+        // 回転を計算
+        const quaternion = new THREE.Quaternion()
+        quaternion.setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          direction.normalize()
+        )
+
+        return (
+          <group key={index}>
+            {/* クリック可能な太い管 */}
+            <mesh
+              position={midPoint}
+              quaternion={quaternion}
+              onClick={(e) => {
+                if (!isFlying) {
+                  e.stopPropagation()
+                  if (onPathClick) {
+                    onPathClick(index, e.point)
+                  }
+                }
+              }}
+              onPointerOver={() => {
+                if (!isFlying) {
+                  document.body.style.cursor = 'pointer'
+                }
+              }}
+              onPointerOut={() => {
+                document.body.style.cursor = 'default'
+              }}
+            >
+              <cylinderGeometry args={[0.08, 0.08, length, 8]} />
+              <meshStandardMaterial
+                color={COLORS.flightPath}
+                opacity={0.6}
+                transparent
+                roughness={0.5}
+                metalness={0.3}
+              />
+            </mesh>
+          </group>
+        )
+      })}
+    </>
   )
 }
 
@@ -186,13 +317,10 @@ function AnimatedDrone({
         Math.pow(nextWaypoint.position[2] - currentWaypoint.position[2], 2)
     )
 
-    // 速度を20km/h以下に制限
-    const speed = Math.min(waypoints[currentIndexRef.current]?.speed || 15, 20) // 最大20km/hに制限
-    const speedFactor = 0.05 * visualSpeed // 係数を0.05に調整して現実的な速度に
-    const increment =
-      distance > 0
-        ? (speed * speedFactor * delta) / Math.max(distance, 1)
-        : 0.05
+    // アニメーション速度の計算をシンプルに
+    const speed = Math.min(waypoints[currentIndexRef.current]?.speed || 15, 20)
+    const baseSpeed = 0.3 // 基本速度係数
+    const increment = (speed * baseSpeed * visualSpeed * delta) / Math.max(distance, 1)
 
     progressRef.current += increment
 
@@ -255,6 +383,33 @@ function AnimatedDrone({
   )
 }
 
+// クリックフィードバック用のリップルコンポーネント
+function ClickRipple({ position }: { position: [number, number, number] }) {
+  const meshRef = useRef<THREE.Mesh>(null)
+
+  useFrame((state, delta) => {
+    if (meshRef.current) {
+      // スケールアップとフェードアウト
+      meshRef.current.scale.x += delta * 2
+      meshRef.current.scale.z += delta * 2
+      const material = meshRef.current.material as THREE.MeshBasicMaterial
+      material.opacity -= delta * 2
+
+      // 完全に透明になったら削除
+      if (material.opacity <= 0) {
+        meshRef.current.visible = false
+      }
+    }
+  })
+
+  return (
+    <mesh ref={meshRef} position={position} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[0.5, 0.8, 32]} />
+      <meshBasicMaterial color={COLORS.waypoint.start} transparent opacity={0.8} />
+    </mesh>
+  )
+}
+
 // クリック可能な地面コンポーネント
 function ClickableGround({
   onGroundClick,
@@ -263,6 +418,7 @@ function ClickableGround({
   onGroundClick: (point: [number, number, number]) => void
   isFlying: boolean
 }) {
+  const [clickRipples, setClickRipples] = React.useState<Array<{ id: number; position: [number, number, number] }>>([])
   const clickState = useRef({
     isDragging: false,
     downPoint: null as THREE.Vector3 | null,
@@ -297,6 +453,16 @@ function ClickableGround({
     // ドラッグ中でなければクリックと判断
     if (!clickState.current.isDragging) {
       const point = e.point
+
+      // リップル効果を追加
+      const ripple = { id: Date.now(), position: [point.x, point.y, point.z] as [number, number, number] }
+      setClickRipples([...clickRipples, ripple])
+
+      // 1秒後にリップルを削除
+      setTimeout(() => {
+        setClickRipples(current => current.filter(r => r.id !== ripple.id))
+      }, 1000)
+
       onGroundClick([point.x, point.y + 50, point.z]) // 空中50mの高さに設定
     }
     // リセット
@@ -305,26 +471,31 @@ function ClickableGround({
   }
 
   return (
-    <mesh
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[0, -1, 0]}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-    >
-      <planeGeometry args={[200, 200]} />
-      <meshStandardMaterial
-        color='#8B4513'
-        roughness={0.8}
-        metalness={0.2}
-        transparent={!isFlying}
-        opacity={isFlying ? 1 : 0.9}
-      />
-    </mesh>
+    <>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, -1, 0]}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+      >
+        <planeGeometry args={[200, 200]} />
+        <meshStandardMaterial
+          color={COLORS.environment.ground}
+          roughness={0.9}
+          metalness={0.1}
+          transparent={!isFlying}
+          opacity={isFlying ? 1 : 0.95}
+        />
+      </mesh>
+
+      {/* クリックリップル効果 */}
+      {clickRipples.map((ripple) => (
+        <ClickRipple key={ripple.id} position={ripple.position} />
+      ))}
+    </>
   )
 }
-
-import React from 'react'
 
 // ドローン目線のカメラコントローラー
 function DroneCamera({
@@ -346,15 +517,15 @@ function DroneCamera({
       offset.applyEuler(droneRotation)
 
       const cameraPosition = dronePosition.clone().add(offset)
-      // カメラ位置をスムーズに補間
-      camera.position.lerp(cameraPosition, 0.1)
+      // カメラ位置をスムーズに補間（係数を大きくして追従を滑らかに）
+      camera.position.lerp(cameraPosition, 0.2)
 
       // ドローンの進行方向を見る
       const forward = new THREE.Vector3(0, 0, 1)
       forward.applyEuler(droneRotation)
       const lookAtPosition = dronePosition.clone().add(forward)
 
-      // lookAtもスムーズに（クォータニオンで制御）
+      // lookAtもスムーズに（クォータニオンで制御、係数を大きくして追従を滑らかに）
       const targetMatrix = new THREE.Matrix4().lookAt(
         camera.position,
         lookAtPosition,
@@ -363,7 +534,7 @@ function DroneCamera({
       const targetQuaternion = new THREE.Quaternion().setFromRotationMatrix(
         targetMatrix
       )
-      camera.quaternion.slerp(targetQuaternion, 0.1)
+      camera.quaternion.slerp(targetQuaternion, 0.2)
     }
     // !isFlyingの時は何もしない (OrbitControlsに制御を任せる)
   })
@@ -378,29 +549,29 @@ function CityBuildings() {
     size: [number, number, number]
     color: string
   }[] = [
-    // 高層ビル群
-    { position: [15, 0, 15], size: [8, 20, 8], color: '#2c3e50' },
-    { position: [-15, 0, 15], size: [6, 15, 6], color: '#34495e' },
-    { position: [15, 0, -15], size: [10, 25, 10], color: '#2c3e50' },
-    { position: [-15, 0, -15], size: [7, 18, 7], color: '#34495e' },
+    // 高層ビル群（統一されたスレートグレー）
+    { position: [15, 0, 15], size: [8, 20, 8], color: COLORS.buildings.highRise[0] },
+    { position: [-15, 0, 15], size: [6, 15, 6], color: COLORS.buildings.highRise[1] },
+    { position: [15, 0, -15], size: [10, 25, 10], color: COLORS.buildings.highRise[0] },
+    { position: [-15, 0, -15], size: [7, 18, 7], color: COLORS.buildings.highRise[1] },
 
-    // 中層ビル群
-    { position: [8, 0, 8], size: [5, 12, 5], color: '#7f8c8d' },
-    { position: [-8, 0, 8], size: [4, 10, 4], color: '#95a5a6' },
-    { position: [8, 0, -8], size: [6, 14, 6], color: '#7f8c8d' },
-    { position: [-8, 0, -8], size: [5, 11, 5], color: '#95a5a6' },
+    // 中層ビル群（グレー系）
+    { position: [8, 0, 8], size: [5, 12, 5], color: COLORS.buildings.midRise[0] },
+    { position: [-8, 0, 8], size: [4, 10, 4], color: COLORS.buildings.midRise[1] },
+    { position: [8, 0, -8], size: [6, 14, 6], color: COLORS.buildings.midRise[0] },
+    { position: [-8, 0, -8], size: [5, 11, 5], color: COLORS.buildings.midRise[1] },
 
-    // 低層ビル群
-    { position: [25, 0, 0], size: [4, 8, 4], color: '#bdc3c7' },
-    { position: [-25, 0, 0], size: [3, 6, 3], color: '#ecf0f1' },
-    { position: [0, 0, 25], size: [5, 9, 5], color: '#bdc3c7' },
-    { position: [0, 0, -25], size: [4, 7, 4], color: '#ecf0f1' },
+    // 低層ビル群（ライトグレー）
+    { position: [25, 0, 0], size: [4, 8, 4], color: COLORS.buildings.lowRise[0] },
+    { position: [-25, 0, 0], size: [3, 6, 3], color: COLORS.buildings.lowRise[1] },
+    { position: [0, 0, 25], size: [5, 9, 5], color: COLORS.buildings.lowRise[0] },
+    { position: [0, 0, -25], size: [4, 7, 4], color: COLORS.buildings.lowRise[1] },
 
-    // 住宅群
-    { position: [30, 0, 30], size: [3, 5, 3], color: '#e74c3c' },
-    { position: [-30, 0, 30], size: [2, 4, 2], color: '#e67e22' },
-    { position: [30, 0, -30], size: [2, 4, 2], color: '#f39c12' },
-    { position: [-30, 0, -30], size: [3, 5, 3], color: '#e74c3c' },
+    // 住宅群（スレートライトグレー）
+    { position: [30, 0, 30], size: [3, 5, 3], color: COLORS.buildings.residential[0] },
+    { position: [-30, 0, 30], size: [2, 4, 2], color: COLORS.buildings.residential[1] },
+    { position: [30, 0, -30], size: [2, 4, 2], color: COLORS.buildings.residential[0] },
+    { position: [-30, 0, -30], size: [3, 5, 3], color: COLORS.buildings.residential[1] },
   ]
 
   return (
@@ -887,22 +1058,32 @@ export interface SceneProps {
   waypoints?: Waypoint[]
   isFlying?: boolean
   onAddWaypoint?: (position: [number, number, number]) => void
-  onRemoveWaypoint?: (id: string) => void // ウェイポイント削除用のコールバックを追加
+  onInsertWaypoint?: (segmentIndex: number, position: [number, number, number]) => void
+  onRemoveWaypoint?: (id: string) => void
   onFlightComplete?: () => void
-  visualSpeed?: number // 視覚的な飛行速度を制御するパラメータを追加
+  visualSpeed?: number
+  highlightedWaypointId?: string | null
 }
 
 export default function Scene({
   waypoints = [],
   isFlying = false,
   onAddWaypoint,
+  onInsertWaypoint,
   onRemoveWaypoint,
   onFlightComplete = () => {},
   visualSpeed = 1.0,
+  highlightedWaypointId = null,
 }: SceneProps) {
   const handleGroundClick = (point: [number, number, number]) => {
     if (onAddWaypoint) {
       onAddWaypoint(point)
+    }
+  }
+
+  const handlePathClick = (segmentIndex: number, clickPoint: THREE.Vector3) => {
+    if (onInsertWaypoint) {
+      onInsertWaypoint(segmentIndex, [clickPoint.x, clickPoint.y, clickPoint.z])
     }
   }
 
@@ -911,7 +1092,7 @@ export default function Scene({
       className='w-full h-full'
       camera={{ position: [20, 25, 20], fov: 45 }}
     >
-      <color attach='background' args={['#87CEEB']} />
+      <color attach='background' args={[COLORS.environment.sky]} />
       <ambientLight intensity={0.6} />
       <directionalLight position={[10, 10, 10]} intensity={1} />
       <pointLight position={[0, 10, 0]} intensity={0.5} />
@@ -922,11 +1103,12 @@ export default function Scene({
       {/* ウェイポイントマーカー */}
       <WaypointMarkers
         waypoints={waypoints}
-        onRemoveWaypoint={onRemoveWaypoint} // 追加
+        onRemoveWaypoint={onRemoveWaypoint}
+        highlightedWaypointId={highlightedWaypointId}
       />
 
       {/* フライトパス */}
-      <FlightPath waypoints={waypoints} />
+      <FlightPath waypoints={waypoints} onPathClick={handlePathClick} isFlying={isFlying} />
 
       {/* ドローン */}
       <AnimatedDrone

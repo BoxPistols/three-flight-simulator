@@ -8,8 +8,8 @@ export default function ThemeToggle() {
   const { mode, toggleTheme } = useTheme();
 
   return (
-    <Tooltip title={`Switch to ${mode === 'light' ? 'dark' : 'light'} mode`}>
-      <IconButton onClick={toggleTheme} color="inherit">
+    <Tooltip title={mode === 'light' ? 'ダークモードに切替' : 'ライトモードに切替'}>
+      <IconButton onClick={toggleTheme} color="inherit" size="small">
         {mode === 'light' ? <Brightness4 /> : <Brightness7 />}
       </IconButton>
     </Tooltip>

@@ -37,11 +37,13 @@ interface Waypoint {
 interface WaypointEditorProps {
   waypoints: Waypoint[]
   setWaypoints: (waypoints: Waypoint[]) => void
+  highlightedWaypointId?: string | null
 }
 
 export default function WaypointEditor({
   waypoints,
   setWaypoints,
+  highlightedWaypointId = null,
 }: WaypointEditorProps) {
   const [newWaypoint, setNewWaypoint] = useState<Omit<Waypoint, 'id'>>({
     latitude: 15,
@@ -155,9 +157,9 @@ export default function WaypointEditor({
   }
 
   return (
-    <Box sx={{ p: 1 }}>
-      <Typography variant='subtitle2' gutterBottom className='font-semibold'>
-        ウェイポイントエディター
+    <Box>
+      <Typography variant='subtitle1' gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
+        ウェイポイント
       </Typography>
 
       <Grid container spacing={1}>
@@ -243,7 +245,8 @@ export default function WaypointEditor({
             startIcon={<AddIcon />}
             onClick={addWaypoint}
             fullWidth
-            size='small'
+            size='medium'
+            sx={{ py: 1 }}
           >
             追加
           </Button>
@@ -253,27 +256,51 @@ export default function WaypointEditor({
             variant='outlined'
             onClick={addSampleWaypoints}
             fullWidth
-            size='small'
+            size='medium'
+            sx={{ py: 1 }}
           >
             サンプル
           </Button>
         </Grid>
       </Grid>
 
-      <TableContainer component={Paper} sx={{ mt: 1, maxHeight: 300 }}>
+      <TableContainer
+        component={Paper}
+        variant='outlined'
+        sx={{ mt: 2, maxHeight: 350, bgcolor: 'background.paper' }}
+      >
         <Table size='small' stickyHeader>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ fontSize: '0.75rem', p: 1 }}>緯度</TableCell>
-              <TableCell sx={{ fontSize: '0.75rem', p: 1 }}>経度</TableCell>
-              <TableCell sx={{ fontSize: '0.75rem', p: 1 }}>高度</TableCell>
-              <TableCell sx={{ fontSize: '0.75rem', p: 1 }}>速度</TableCell>
-              <TableCell sx={{ fontSize: '0.75rem', p: 1 }}>操作</TableCell>
+              <TableCell sx={{ fontSize: '0.75rem', p: 1, fontWeight: 600, bgcolor: 'action.hover' }}>緯度</TableCell>
+              <TableCell sx={{ fontSize: '0.75rem', p: 1, fontWeight: 600, bgcolor: 'action.hover' }}>経度</TableCell>
+              <TableCell sx={{ fontSize: '0.75rem', p: 1, fontWeight: 600, bgcolor: 'action.hover' }}>高度</TableCell>
+              <TableCell sx={{ fontSize: '0.75rem', p: 1, fontWeight: 600, bgcolor: 'action.hover' }}>速度</TableCell>
+              <TableCell sx={{ fontSize: '0.75rem', p: 1, fontWeight: 600, bgcolor: 'action.hover' }}>操作</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {waypoints.map((wp) => (
-              <TableRow key={wp.id}>
+            {waypoints.map((wp) => {
+              const isHighlighted = wp.id === highlightedWaypointId;
+              return (
+                <TableRow
+                  key={wp.id}
+                  sx={{
+                    transition: 'all 0.3s ease',
+                    bgcolor: isHighlighted ? 'primary.main' : 'transparent',
+                    color: isHighlighted ? 'primary.contrastText' : 'inherit',
+                    '&:hover': {
+                      bgcolor: isHighlighted ? 'primary.dark' : 'action.hover',
+                      transform: 'translateX(4px)',
+                    },
+                    animation: isHighlighted ? 'highlight 0.5s ease-in-out' : 'none',
+                    '@keyframes highlight': {
+                      '0%': { transform: 'scale(1)' },
+                      '50%': { transform: 'scale(1.02)' },
+                      '100%': { transform: 'scale(1)' },
+                    },
+                  }}
+                >
                 <TableCell sx={{ fontSize: '0.7rem', p: 0.5 }}>
                   {wp.latitude.toFixed(1)}
                 </TableCell>
@@ -291,7 +318,13 @@ export default function WaypointEditor({
                     onClick={() => editWaypoint(wp)}
                     color='primary'
                     size='small'
-                    sx={{ mr: 0.5 }}
+                    sx={{
+                      mr: 0.5,
+                      '&:hover': {
+                        bgcolor: 'primary.main',
+                        color: 'white',
+                      },
+                    }}
                   >
                     <EditIcon fontSize='small' />
                   </IconButton>
@@ -299,20 +332,31 @@ export default function WaypointEditor({
                     onClick={() => removeWaypoint(wp.id)}
                     color='error'
                     size='small'
+                    sx={{
+                      '&:hover': {
+                        bgcolor: 'error.main',
+                        color: 'white',
+                      },
+                    }}
                   >
                     <DeleteIcon fontSize='small' />
                   </IconButton>
                 </TableCell>
               </TableRow>
-            ))}
+              );
+            })}
             {waypoints.length === 0 && (
               <TableRow>
                 <TableCell
                   colSpan={5}
                   align='center'
-                  sx={{ fontSize: '0.7rem', fontStyle: 'italic', p: 1 }}
+                  sx={{ fontSize: '0.75rem', fontStyle: 'italic', p: 3, color: 'text.secondary' }}
                 >
-                  ウェイポイントなし
+                  ウェイポイントが登録されていません
+                  <br />
+                  <Typography variant='caption' sx={{ mt: 1, display: 'block' }}>
+                    3D画面をクリックまたは手動で追加
+                  </Typography>
                 </TableCell>
               </TableRow>
             )}
