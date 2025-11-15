@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
-import { Button, Typography, Grid, Paper, Box, Divider, Fade, Chip, LinearProgress } from '@mui/material';
+import { Button, Typography, Paper, Box, Divider, Fade, Chip, LinearProgress } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';

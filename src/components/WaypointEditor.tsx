@@ -280,7 +280,7 @@ export default function WaypointEditor({
             </TableRow>
           </TableHead>
           <TableBody>
-            {waypoints.map((wp, index) => {
+            {waypoints.map((wp) => {
               const isHighlighted = wp.id === highlightedWaypointId;
               return (
                 <TableRow
