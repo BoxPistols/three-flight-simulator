@@ -102,7 +102,9 @@ export default function ThemeProvider({ children }: { children: ReactNode }) {
       mode === 'dark'
         ? '0px 8px 16px rgba(0, 0, 0, 0.4)'
         : '0px 8px 16px rgba(15, 23, 42, 0.12)',
-      ...Array(21).fill('none'),
+      'none', 'none', 'none', 'none', 'none', 'none', 'none',
+      'none', 'none', 'none', 'none', 'none', 'none', 'none',
+      'none', 'none', 'none', 'none', 'none', 'none', 'none',
     ],
     components: {
       MuiCssBaseline: {
