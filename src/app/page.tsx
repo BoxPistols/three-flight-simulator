@@ -85,6 +85,37 @@ export default function Home() {
     }, 3000);
   };
 
+  const handleInsertWaypoint = (segmentIndex: number, position: [number, number, number]) => {
+    // 基準点として最初のウェイポイント、または東京駅を使用
+    const reference = waypoints.length > 0
+      ? { latitude: waypoints[0].latitude, longitude: waypoints[0].longitude }
+      : { latitude: 35.6812, longitude: 139.7671 };
+
+    const { latitude, longitude, altitude } = convert3DToLatLon(position[0], position[1], position[2], reference);
+
+    const newWaypoint: Waypoint = {
+      id: Date.now().toString(),
+      latitude,
+      longitude,
+      altitude,
+      speed: 15,
+      rotation: 0
+    };
+
+    // segmentIndexの後に挿入（segmentIndex + 1の位置）
+    const newWaypoints = [...waypoints];
+    newWaypoints.splice(segmentIndex + 1, 0, newWaypoint);
+    setWaypoints(newWaypoints);
+
+    // 新しく追加されたウェイポイントをハイライト
+    setHighlightedWaypointId(newWaypoint.id);
+
+    // 3秒後にハイライトを解除
+    setTimeout(() => {
+      setHighlightedWaypointId(null);
+    }, 3000);
+  };
+
   if (!mounted) {
     return (
       <Box
@@ -226,6 +257,7 @@ export default function Home() {
           </Typography>
           <Box component="ul" sx={{ pl: 2.5, m: 0, '& li': { fontSize: '0.75rem', mb: 0.75, color: 'text.secondary', lineHeight: 1.5 } }}>
             <li>3D画面をクリックでウェイポイント追加</li>
+            <li>フライトプラン（経路）をクリックで途中に挿入</li>
             <li>手動入力でも追加可能</li>
             <li>開始ボタンでドローン目線飛行</li>
             <li>停止中はマウスで自由視点操作</li>
@@ -351,6 +383,7 @@ export default function Home() {
             waypoints={waypoints}
             isFlying={isFlying}
             onAddWaypoint={handleAddWaypointFromClick}
+            onInsertWaypoint={handleInsertWaypoint}
             onFlightComplete={handleFlightComplete}
             highlightedWaypointId={highlightedWaypointId}
           />

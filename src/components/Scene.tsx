@@ -189,28 +189,79 @@ function WaypointMarkers({
   )
 }
 
-// フライトパスを描画
-function FlightPath({ waypoints }: { waypoints: Waypoint[] }) {
+// フライトパスを描画（クリック可能な管として描画）
+function FlightPath({
+  waypoints,
+  onPathClick,
+  isFlying,
+}: {
+  waypoints: Waypoint[]
+  onPathClick?: (segmentIndex: number, clickPoint: THREE.Vector3) => void
+  isFlying?: boolean
+}) {
   if (waypoints.length < 2) return null
 
   const pathPoints = convertWaypointsTo3D(waypoints).map((wp) => wp.position)
-  const points = []
-
-  for (let i = 0; i < pathPoints.length; i++) {
-    points.push(pathPoints[i][0], pathPoints[i][1], pathPoints[i][2])
-  }
 
   return (
-    <line>
-      <bufferGeometry>
-        <bufferAttribute
-          attach='attributes-position'
-          count={pathPoints.length}
-          args={[new Float32Array(points), 3]}
-        />
-      </bufferGeometry>
-      <lineBasicMaterial color={COLORS.flightPath} linewidth={2} opacity={0.8} transparent />
-    </line>
+    <>
+      {/* 各セグメントを個別のクリック可能な管として描画 */}
+      {pathPoints.map((point, index) => {
+        if (index === pathPoints.length - 1) return null
+
+        const start = new THREE.Vector3(...pathPoints[index])
+        const end = new THREE.Vector3(...pathPoints[index + 1])
+
+        // 中点を計算
+        const midPoint = new THREE.Vector3().lerpVectors(start, end, 0.5)
+
+        // セグメントの長さと方向を計算
+        const direction = new THREE.Vector3().subVectors(end, start)
+        const length = direction.length()
+
+        // 回転を計算
+        const quaternion = new THREE.Quaternion()
+        quaternion.setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          direction.normalize()
+        )
+
+        return (
+          <group key={index}>
+            {/* クリック可能な太い管 */}
+            <mesh
+              position={midPoint}
+              quaternion={quaternion}
+              onClick={(e) => {
+                if (!isFlying) {
+                  e.stopPropagation()
+                  if (onPathClick) {
+                    onPathClick(index, e.point)
+                  }
+                }
+              }}
+              onPointerOver={() => {
+                if (!isFlying) {
+                  document.body.style.cursor = 'pointer'
+                }
+              }}
+              onPointerOut={() => {
+                document.body.style.cursor = 'default'
+              }}
+            >
+              <cylinderGeometry args={[0.08, 0.08, length, 8]} />
+              <meshStandardMaterial
+                color={COLORS.flightPath}
+                opacity={0.6}
+                transparent
+                roughness={0.5}
+                metalness={0.3}
+              />
+            </mesh>
+          </group>
+        )
+      })}
+    </>
   )
 }
 
@@ -1007,6 +1058,7 @@ export interface SceneProps {
   waypoints?: Waypoint[]
   isFlying?: boolean
   onAddWaypoint?: (position: [number, number, number]) => void
+  onInsertWaypoint?: (segmentIndex: number, position: [number, number, number]) => void
   onRemoveWaypoint?: (id: string) => void
   onFlightComplete?: () => void
   visualSpeed?: number
@@ -1017,6 +1069,7 @@ export default function Scene({
   waypoints = [],
   isFlying = false,
   onAddWaypoint,
+  onInsertWaypoint,
   onRemoveWaypoint,
   onFlightComplete = () => {},
   visualSpeed = 1.0,
@@ -1025,6 +1078,12 @@ export default function Scene({
   const handleGroundClick = (point: [number, number, number]) => {
     if (onAddWaypoint) {
       onAddWaypoint(point)
+    }
+  }
+
+  const handlePathClick = (segmentIndex: number, clickPoint: THREE.Vector3) => {
+    if (onInsertWaypoint) {
+      onInsertWaypoint(segmentIndex, [clickPoint.x, clickPoint.y, clickPoint.z])
     }
   }
 
@@ -1049,7 +1108,7 @@ export default function Scene({
       />
 
       {/* フライトパス */}
-      <FlightPath waypoints={waypoints} />
+      <FlightPath waypoints={waypoints} onPathClick={handlePathClick} isFlying={isFlying} />
 
       {/* ドローン */}
       <AnimatedDrone
