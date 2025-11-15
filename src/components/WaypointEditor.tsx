@@ -37,11 +37,13 @@ interface Waypoint {
 interface WaypointEditorProps {
   waypoints: Waypoint[]
   setWaypoints: (waypoints: Waypoint[]) => void
+  highlightedWaypointId?: string | null
 }
 
 export default function WaypointEditor({
   waypoints,
   setWaypoints,
+  highlightedWaypointId = null,
 }: WaypointEditorProps) {
   const [newWaypoint, setNewWaypoint] = useState<Omit<Waypoint, 'id'>>({
     latitude: 15,
@@ -278,17 +280,27 @@ export default function WaypointEditor({
             </TableRow>
           </TableHead>
           <TableBody>
-            {waypoints.map((wp, index) => (
-              <TableRow
-                key={wp.id}
-                sx={{
-                  transition: 'all 0.2s ease',
-                  '&:hover': {
-                    bgcolor: 'action.hover',
-                    transform: 'translateX(4px)',
-                  },
-                }}
-              >
+            {waypoints.map((wp, index) => {
+              const isHighlighted = wp.id === highlightedWaypointId;
+              return (
+                <TableRow
+                  key={wp.id}
+                  sx={{
+                    transition: 'all 0.3s ease',
+                    bgcolor: isHighlighted ? 'primary.main' : 'transparent',
+                    color: isHighlighted ? 'primary.contrastText' : 'inherit',
+                    '&:hover': {
+                      bgcolor: isHighlighted ? 'primary.dark' : 'action.hover',
+                      transform: 'translateX(4px)',
+                    },
+                    animation: isHighlighted ? 'highlight 0.5s ease-in-out' : 'none',
+                    '@keyframes highlight': {
+                      '0%': { transform: 'scale(1)' },
+                      '50%': { transform: 'scale(1.02)' },
+                      '100%': { transform: 'scale(1)' },
+                    },
+                  }}
+                >
                 <TableCell sx={{ fontSize: '0.7rem', p: 0.5 }}>
                   {wp.latitude.toFixed(1)}
                 </TableCell>
@@ -331,7 +343,8 @@ export default function WaypointEditor({
                   </IconButton>
                 </TableCell>
               </TableRow>
-            ))}
+              );
+            })}
             {waypoints.length === 0 && (
               <TableRow>
                 <TableCell

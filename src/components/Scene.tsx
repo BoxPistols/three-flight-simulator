@@ -1,8 +1,8 @@
 'use client'
 
+import React, { useRef, useEffect, forwardRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
-import { useRef, useEffect, forwardRef } from 'react'
 import { convertWaypointsTo3D } from '@/lib/coordinateConverter'
 import * as THREE from 'three'
 
@@ -109,60 +109,82 @@ DroneModel.displayName = 'DroneModel'
 function WaypointMarkers({
   waypoints,
   onRemoveWaypoint,
+  highlightedWaypointId,
 }: {
   waypoints: Waypoint[]
   onRemoveWaypoint?: (id: string) => void
+  highlightedWaypointId?: string | null
 }) {
   const pathPoints = convertWaypointsTo3D(waypoints)
 
   return (
     <>
-      {pathPoints.map((wp, index) => (
-        <group key={index} position={wp.position}>
-          {/* クリック可能なウェイポイントマーカー */}
-          <mesh
-            position={[0, 0.2, 0]}
-            onClick={(e) => {
-              e.stopPropagation()
-              if (onRemoveWaypoint) {
-                onRemoveWaypoint(waypoints[index].id)
-              }
-            }}
-            onPointerOver={() => {
-              document.body.style.cursor = 'pointer'
-            }}
-            onPointerOut={() => {
-              document.body.style.cursor = 'default'
-            }}
-          >
-            <sphereGeometry args={[0.15, 16, 16]} />
-            <meshStandardMaterial
-              color={
-                index === 0
-                  ? COLORS.waypoint.start
-                  : index === pathPoints.length - 1
-                  ? COLORS.waypoint.end
-                  : COLORS.waypoint.middle
-              }
-              emissive={
-                index === 0
-                  ? COLORS.waypoint.emissive.start
-                  : index === pathPoints.length - 1
-                  ? COLORS.waypoint.emissive.end
-                  : COLORS.waypoint.emissive.middle
-              }
-              emissiveIntensity={0.5}
-              roughness={0.3}
-              metalness={0.4}
-            />
-          </mesh>
-          {/* 高度を示すポール */}
-          <mesh position={[0, 0.1, 0]}>
-            <cylinderGeometry args={[0.02, 0.02, 0.2]} />
-            <meshStandardMaterial color={COLORS.waypoint.pole} />
-          </mesh>
-        </group>
-      ))}
+      {pathPoints.map((wp, index) => {
+        const isHighlighted = waypoints[index].id === highlightedWaypointId
+        const isStart = index === 0
+        const isEnd = index === pathPoints.length - 1
+
+        return (
+          <group key={index} position={wp.position}>
+            {/* クリック可能なウェイポイントマーカー */}
+            <mesh
+              position={[0, 0.2, 0]}
+              scale={isHighlighted ? 1.3 : 1}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (onRemoveWaypoint) {
+                  onRemoveWaypoint(waypoints[index].id)
+                }
+              }}
+              onPointerOver={() => {
+                document.body.style.cursor = 'pointer'
+              }}
+              onPointerOut={() => {
+                document.body.style.cursor = 'default'
+              }}
+            >
+              <sphereGeometry args={[0.15, 16, 16]} />
+              <meshStandardMaterial
+                color={
+                  isStart
+                    ? COLORS.waypoint.start
+                    : isEnd
+                    ? COLORS.waypoint.end
+                    : COLORS.waypoint.middle
+                }
+                emissive={
+                  isStart
+                    ? COLORS.waypoint.emissive.start
+                    : isEnd
+                    ? COLORS.waypoint.emissive.end
+                    : COLORS.waypoint.emissive.middle
+                }
+                emissiveIntensity={isHighlighted ? 1.0 : 0.5}
+                roughness={0.3}
+                metalness={0.4}
+              />
+            </mesh>
+
+            {/* ハイライト時のリング */}
+            {isHighlighted && (
+              <mesh position={[0, 0.2, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                <ringGeometry args={[0.2, 0.25, 32]} />
+                <meshBasicMaterial
+                  color={isStart ? COLORS.waypoint.start : isEnd ? COLORS.waypoint.end : COLORS.waypoint.middle}
+                  transparent
+                  opacity={0.6}
+                />
+              </mesh>
+            )}
+
+            {/* 高度を示すポール */}
+            <mesh position={[0, 0.1, 0]}>
+              <cylinderGeometry args={[0.02, 0.02, 0.2]} />
+              <meshStandardMaterial color={COLORS.waypoint.pole} />
+            </mesh>
+          </group>
+        )
+      })}
     </>
   )
 }
@@ -310,6 +332,33 @@ function AnimatedDrone({
   )
 }
 
+// クリックフィードバック用のリップルコンポーネント
+function ClickRipple({ position }: { position: [number, number, number] }) {
+  const meshRef = useRef<THREE.Mesh>(null)
+
+  useFrame((state, delta) => {
+    if (meshRef.current) {
+      // スケールアップとフェードアウト
+      meshRef.current.scale.x += delta * 2
+      meshRef.current.scale.z += delta * 2
+      const material = meshRef.current.material as THREE.MeshBasicMaterial
+      material.opacity -= delta * 2
+
+      // 完全に透明になったら削除
+      if (material.opacity <= 0) {
+        meshRef.current.visible = false
+      }
+    }
+  })
+
+  return (
+    <mesh ref={meshRef} position={position} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[0.5, 0.8, 32]} />
+      <meshBasicMaterial color={COLORS.waypoint.start} transparent opacity={0.8} />
+    </mesh>
+  )
+}
+
 // クリック可能な地面コンポーネント
 function ClickableGround({
   onGroundClick,
@@ -318,6 +367,7 @@ function ClickableGround({
   onGroundClick: (point: [number, number, number]) => void
   isFlying: boolean
 }) {
+  const [clickRipples, setClickRipples] = React.useState<Array<{ id: number; position: [number, number, number] }>>([])
   const clickState = useRef({
     isDragging: false,
     downPoint: null as THREE.Vector3 | null,
@@ -352,6 +402,16 @@ function ClickableGround({
     // ドラッグ中でなければクリックと判断
     if (!clickState.current.isDragging) {
       const point = e.point
+
+      // リップル効果を追加
+      const ripple = { id: Date.now(), position: [point.x, point.y, point.z] as [number, number, number] }
+      setClickRipples([...clickRipples, ripple])
+
+      // 1秒後にリップルを削除
+      setTimeout(() => {
+        setClickRipples(current => current.filter(r => r.id !== ripple.id))
+      }, 1000)
+
       onGroundClick([point.x, point.y + 50, point.z]) // 空中50mの高さに設定
     }
     // リセット
@@ -360,26 +420,31 @@ function ClickableGround({
   }
 
   return (
-    <mesh
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[0, -1, 0]}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-    >
-      <planeGeometry args={[200, 200]} />
-      <meshStandardMaterial
-        color={COLORS.environment.ground}
-        roughness={0.9}
-        metalness={0.1}
-        transparent={!isFlying}
-        opacity={isFlying ? 1 : 0.95}
-      />
-    </mesh>
+    <>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, -1, 0]}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+      >
+        <planeGeometry args={[200, 200]} />
+        <meshStandardMaterial
+          color={COLORS.environment.ground}
+          roughness={0.9}
+          metalness={0.1}
+          transparent={!isFlying}
+          opacity={isFlying ? 1 : 0.95}
+        />
+      </mesh>
+
+      {/* クリックリップル効果 */}
+      {clickRipples.map((ripple) => (
+        <ClickRipple key={ripple.id} position={ripple.position} />
+      ))}
+    </>
   )
 }
-
-import React from 'react'
 
 // ドローン目線のカメラコントローラー
 function DroneCamera({
@@ -942,9 +1007,10 @@ export interface SceneProps {
   waypoints?: Waypoint[]
   isFlying?: boolean
   onAddWaypoint?: (position: [number, number, number]) => void
-  onRemoveWaypoint?: (id: string) => void // ウェイポイント削除用のコールバックを追加
+  onRemoveWaypoint?: (id: string) => void
   onFlightComplete?: () => void
-  visualSpeed?: number // 視覚的な飛行速度を制御するパラメータを追加
+  visualSpeed?: number
+  highlightedWaypointId?: string | null
 }
 
 export default function Scene({
@@ -954,6 +1020,7 @@ export default function Scene({
   onRemoveWaypoint,
   onFlightComplete = () => {},
   visualSpeed = 1.0,
+  highlightedWaypointId = null,
 }: SceneProps) {
   const handleGroundClick = (point: [number, number, number]) => {
     if (onAddWaypoint) {
@@ -977,7 +1044,8 @@ export default function Scene({
       {/* ウェイポイントマーカー */}
       <WaypointMarkers
         waypoints={waypoints}
-        onRemoveWaypoint={onRemoveWaypoint} // 追加
+        onRemoveWaypoint={onRemoveWaypoint}
+        highlightedWaypointId={highlightedWaypointId}
       />
 
       {/* フライトパス */}

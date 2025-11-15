@@ -24,6 +24,7 @@ export default function Home() {
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
   const [isFlying, setIsFlying] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [highlightedWaypointId, setHighlightedWaypointId] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -45,22 +46,30 @@ export default function Home() {
 
   const handleAddWaypointFromClick = (position: [number, number, number]) => {
     // 基準点として最初のウェイポイント、または東京駅を使用
-    const reference = waypoints.length > 0 
+    const reference = waypoints.length > 0
       ? { latitude: waypoints[0].latitude, longitude: waypoints[0].longitude }
       : { latitude: 35.6812, longitude: 139.7671 };
-    
+
     const { latitude, longitude, altitude } = convert3DToLatLon(position[0], position[1], position[2], reference);
-    
+
     const newWaypoint: Waypoint = {
       id: Date.now().toString(),
       latitude,
       longitude,
       altitude,
-      speed: 5,
+      speed: 15,
       rotation: 0
     };
-    
+
     setWaypoints([...waypoints, newWaypoint]);
+
+    // 新しく追加されたウェイポイントをハイライト
+    setHighlightedWaypointId(newWaypoint.id);
+
+    // 3秒後にハイライトを解除
+    setTimeout(() => {
+      setHighlightedWaypointId(null);
+    }, 3000);
   };
 
   if (!mounted) {
@@ -111,6 +120,7 @@ export default function Home() {
         <WaypointEditor
           waypoints={waypoints}
           setWaypoints={setWaypoints}
+          highlightedWaypointId={highlightedWaypointId}
         />
 
         <Box sx={{ mt: 'auto', pt: 2 }}>
@@ -265,6 +275,7 @@ export default function Home() {
             isFlying={isFlying}
             onAddWaypoint={handleAddWaypointFromClick}
             onFlightComplete={handleFlightComplete}
+            highlightedWaypointId={highlightedWaypointId}
           />
         </Box>
       </Box>
