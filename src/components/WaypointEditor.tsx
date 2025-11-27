@@ -20,6 +20,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Tooltip,
 } from '@mui/material'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
@@ -240,27 +241,31 @@ export default function WaypointEditor({
           />
         </Grid>
         <Grid size={6}>
-          <Button
-            variant='contained'
-            startIcon={<AddIcon />}
-            onClick={addWaypoint}
-            fullWidth
-            size='medium'
-            sx={{ py: 1 }}
-          >
-            追加
-          </Button>
+          <Tooltip title="入力した座標でウェイポイントを追加" arrow>
+            <Button
+              variant='contained'
+              startIcon={<AddIcon />}
+              onClick={addWaypoint}
+              fullWidth
+              size='medium'
+              sx={{ py: 1 }}
+            >
+              追加
+            </Button>
+          </Tooltip>
         </Grid>
         <Grid size={6}>
-          <Button
-            variant='outlined'
-            onClick={addSampleWaypoints}
-            fullWidth
-            size='medium'
-            sx={{ py: 1 }}
-          >
-            サンプル
-          </Button>
+          <Tooltip title="建物を周回するサンプルフライトプランを読み込む" arrow>
+            <Button
+              variant='outlined'
+              onClick={addSampleWaypoints}
+              fullWidth
+              size='medium'
+              sx={{ py: 1 }}
+            >
+              サンプル
+            </Button>
+          </Tooltip>
         </Grid>
       </Grid>
 
@@ -314,33 +319,37 @@ export default function WaypointEditor({
                   {wp.speed}km/h
                 </TableCell>
                 <TableCell sx={{ p: 0.5 }}>
-                  <IconButton
-                    onClick={() => editWaypoint(wp)}
-                    color='primary'
-                    size='small'
-                    sx={{
-                      mr: 0.5,
-                      '&:hover': {
-                        bgcolor: 'primary.main',
-                        color: 'white',
-                      },
-                    }}
-                  >
-                    <EditIcon fontSize='small' />
-                  </IconButton>
-                  <IconButton
-                    onClick={() => removeWaypoint(wp.id)}
-                    color='error'
-                    size='small'
-                    sx={{
-                      '&:hover': {
-                        bgcolor: 'error.main',
-                        color: 'white',
-                      },
-                    }}
-                  >
-                    <DeleteIcon fontSize='small' />
-                  </IconButton>
+                  <Tooltip title="このウェイポイントを編集" arrow>
+                    <IconButton
+                      onClick={() => editWaypoint(wp)}
+                      color='primary'
+                      size='small'
+                      sx={{
+                        mr: 0.5,
+                        '&:hover': {
+                          bgcolor: 'primary.main',
+                          color: 'white',
+                        },
+                      }}
+                    >
+                      <EditIcon fontSize='small' />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="このウェイポイントを削除" arrow>
+                    <IconButton
+                      onClick={() => removeWaypoint(wp.id)}
+                      color='error'
+                      size='small'
+                      sx={{
+                        '&:hover': {
+                          bgcolor: 'error.main',
+                          color: 'white',
+                        },
+                      }}
+                    >
+                      <DeleteIcon fontSize='small' />
+                    </IconButton>
+                  </Tooltip>
                 </TableCell>
               </TableRow>
               );
@@ -437,10 +446,14 @@ export default function WaypointEditor({
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>キャンセル</Button>
-          <Button onClick={saveEditedWaypoint} variant='contained'>
-            保存
-          </Button>
+          <Tooltip title="編集をキャンセルして閉じる" arrow>
+            <Button onClick={() => setEditDialogOpen(false)}>キャンセル</Button>
+          </Tooltip>
+          <Tooltip title="変更を保存する" arrow>
+            <Button onClick={saveEditedWaypoint} variant='contained'>
+              保存
+            </Button>
+          </Tooltip>
         </DialogActions>
       </Dialog>
     </Box>

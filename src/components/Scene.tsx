@@ -270,16 +270,19 @@ function AnimatedDrone({
   waypoints,
   isFlying,
   onFlightComplete,
+  onDebugDataUpdate,
   visualSpeed = 1.0, // 視覚的な飛行速度を制御するパラメータを追加
 }: {
   waypoints: Waypoint[]
   isFlying: boolean
   onFlightComplete?: () => void
+  onDebugDataUpdate?: (data: FlightDebugData) => void
   visualSpeed?: number // 追加
 }) {
   const droneRef = useRef<THREE.Group>(null)
   const progressRef = useRef(0)
   const currentIndexRef = useRef(0)
+  const flightTimeRef = useRef(0)
 
   // 3D座標に変換
   const pathPoints = convertWaypointsTo3D(waypoints)
@@ -289,6 +292,7 @@ function AnimatedDrone({
     if (!isFlying) {
       progressRef.current = 0
       currentIndexRef.current = 0
+      flightTimeRef.current = 0
       // 最初のウェイポイントの位置に戻す
       if (droneRef.current && pathPoints.length > 0) {
         droneRef.current.position.set(...pathPoints[0].position)
@@ -298,6 +302,9 @@ function AnimatedDrone({
 
   useFrame((_state, delta) => {
     if (!isFlying || pathPoints.length < 2 || !droneRef.current) return
+
+    // 飛行時間を更新
+    flightTimeRef.current += delta
 
     const currentWaypoint = pathPoints[currentIndexRef.current]
     const nextWaypoint = pathPoints[currentIndexRef.current + 1]
@@ -364,6 +371,28 @@ function AnimatedDrone({
       if (direction[0] !== 0 || direction[2] !== 0) {
         const angle = Math.atan2(direction[0], direction[2])
         droneRef.current.rotation.y = angle
+      }
+
+      // デバッグデータを送信
+      if (onDebugDataUpdate) {
+        const overallProgress = ((currentIndexRef.current + progressRef.current) / (pathPoints.length - 1)) * 100
+        const remainingDistance = distance * (1 - progressRef.current)
+
+        onDebugDataUpdate({
+          dronePosition: { x, y, z },
+          droneRotation: {
+            x: droneRef.current.rotation.x,
+            y: droneRef.current.rotation.y,
+            z: droneRef.current.rotation.z,
+          },
+          currentWaypointIndex: currentIndexRef.current,
+          totalWaypoints: pathPoints.length,
+          currentSpeed: speed,
+          segmentProgress: progressRef.current,
+          overallProgress,
+          distanceToNext: remainingDistance,
+          flightTime: flightTimeRef.current,
+        })
       }
     }
   })
@@ -1054,6 +1083,18 @@ export function generateSampleWaypoints(): Waypoint[] {
   ]
 }
 
+export interface FlightDebugData {
+  dronePosition: { x: number; y: number; z: number }
+  droneRotation: { x: number; y: number; z: number }
+  currentWaypointIndex: number
+  totalWaypoints: number
+  currentSpeed: number
+  segmentProgress: number
+  overallProgress: number
+  distanceToNext: number
+  flightTime: number
+}
+
 export interface SceneProps {
   waypoints?: Waypoint[]
   isFlying?: boolean
@@ -1061,6 +1102,7 @@ export interface SceneProps {
   onInsertWaypoint?: (segmentIndex: number, position: [number, number, number]) => void
   onRemoveWaypoint?: (id: string) => void
   onFlightComplete?: () => void
+  onDebugDataUpdate?: (data: FlightDebugData) => void
   visualSpeed?: number
   highlightedWaypointId?: string | null
 }
@@ -1072,6 +1114,7 @@ export default function Scene({
   onInsertWaypoint,
   onRemoveWaypoint,
   onFlightComplete = () => {},
+  onDebugDataUpdate,
   visualSpeed = 1.0,
   highlightedWaypointId = null,
 }: SceneProps) {
@@ -1115,7 +1158,8 @@ export default function Scene({
         waypoints={waypoints}
         isFlying={isFlying}
         onFlightComplete={onFlightComplete}
-        visualSpeed={visualSpeed} // 追加
+        onDebugDataUpdate={onDebugDataUpdate}
+        visualSpeed={visualSpeed}
       />
 
       {/* 建物群 */}
