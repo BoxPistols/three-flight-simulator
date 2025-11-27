@@ -80,20 +80,18 @@ export const convert3DToLatLon = (
 
 /**
  * 複数のウェイポイントを3D座標に変換
+ * latitude/longitudeの値が相対座標として使用される（シーン内の位置）
  */
 export const convertWaypointsTo3D = (
   waypoints: Array<{ latitude: number; longitude: number; altitude: number }>,
   referenceIndex = 0
 ) => {
   if (waypoints.length === 0) return [];
-  
-  const reference = {
-    latitude: waypoints[referenceIndex].latitude,
-    longitude: waypoints[referenceIndex].longitude
-  };
-  
+
+  // latitude/longitudeを直接X/Z座標として使用（相対座標モード）
+  // これはシーン内の位置を表す
   return waypoints.map(wp => ({
     ...wp,
-    position: convertLatLonTo3D(wp.latitude, wp.longitude, wp.altitude, reference)
+    position: [wp.longitude, wp.altitude * 0.5, wp.latitude] as [number, number, number]
   }));
 };

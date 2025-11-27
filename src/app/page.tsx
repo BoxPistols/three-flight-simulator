@@ -11,6 +11,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
 import BugReportIcon from '@mui/icons-material/BugReport';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import { Waypoint, FlightDebugData } from '@/components/Scene';
 import WaypointEditor from '@/components/WaypointEditor';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -197,13 +198,11 @@ export default function Home() {
             フライトコントロール
           </Typography>
         </Box>
-        {isMobile && (
-          <Tooltip title="パネルを閉じる" arrow>
-            <IconButton onClick={() => setDrawerOpen(false)} size="small">
-              <CloseIcon />
-            </IconButton>
-          </Tooltip>
-        )}
+        <Tooltip title="パネルを閉じる" arrow>
+          <IconButton onClick={() => setDrawerOpen(false)} size="small">
+            <ChevronLeftIcon />
+          </IconButton>
+        </Tooltip>
       </Box>
 
       <Divider sx={{ my: 0.5 }} />
@@ -324,37 +323,27 @@ export default function Home() {
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', bgcolor: 'background.default' }}>
-      {/* デスクトップ: 固定サイドパネル、モバイル: Drawer */}
-      {isMobile ? (
-        <Drawer
-          anchor="left"
-          open={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
-          ModalProps={{
-            keepMounted: true, // モバイルパフォーマンス向上
-          }}
-          sx={{
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
-              width: drawerWidth,
-            },
-          }}
-        >
-          {drawerContent}
-        </Drawer>
-      ) : (
-        <Paper
-          elevation={3}
-          sx={{
+      {/* サイドパネル（Drawer - デスクトップ/モバイル共通でトグル可能） */}
+      <Drawer
+        anchor="left"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        variant={isMobile ? "temporary" : "persistent"}
+        ModalProps={{
+          keepMounted: true,
+        }}
+        sx={{
+          width: drawerOpen ? drawerWidth : 0,
+          flexShrink: 0,
+          '& .MuiDrawer-paper': {
+            boxSizing: 'border-box',
             width: drawerWidth,
-            flexShrink: 0,
-            borderRadius: 0,
-            overflowY: 'auto',
-          }}
-        >
-          {drawerContent}
-        </Paper>
-      )}
+            position: isMobile ? 'fixed' : 'relative',
+          },
+        }}
+      >
+        {drawerContent}
+      </Drawer>
 
       {/* メインフライト画面 */}
       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -372,23 +361,21 @@ export default function Home() {
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            {isMobile && (
-              <Tooltip title="フライトコントロールパネルを開く" arrow>
-                <IconButton
-                  onClick={() => setDrawerOpen(!drawerOpen)}
-                  edge="start"
-                  sx={{
-                    color: 'primary.main',
-                    '&:hover': {
-                      bgcolor: 'primary.main',
-                      color: 'primary.contrastText',
-                    },
-                  }}
-                >
-                  <MenuIcon />
-                </IconButton>
-              </Tooltip>
-            )}
+            <Tooltip title={drawerOpen ? "パネルを閉じる" : "フライトコントロールパネルを開く"} arrow>
+              <IconButton
+                onClick={() => setDrawerOpen(!drawerOpen)}
+                edge="start"
+                sx={{
+                  color: 'primary.main',
+                  '&:hover': {
+                    bgcolor: 'primary.main',
+                    color: 'primary.contrastText',
+                  },
+                }}
+              >
+                <MenuIcon />
+              </IconButton>
+            </Tooltip>
             <Typography
               variant="subtitle1"
               sx={{
