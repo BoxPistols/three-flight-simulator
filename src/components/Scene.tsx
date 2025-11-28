@@ -279,7 +279,7 @@ function AnimatedDrone({
   isFlying: boolean
   onFlightComplete?: () => void
   onDebugDataUpdate?: (data: FlightDebugData) => void
-  orbitControlsRef: React.RefObject<OrbitControlsImpl | null>
+  orbitControlsRef: React.RefObject<React.ElementRef<typeof OrbitControls> | null>
   visualSpeed?: number // 追加
 }) {
   const droneRef = useRef<THREE.Group>(null)
@@ -532,7 +532,7 @@ function DroneCamera({
 }: {
   droneRef: React.RefObject<THREE.Group | null>
   isFlying: boolean
-  orbitControlsRef: React.RefObject<OrbitControlsImpl | null>
+  orbitControlsRef: React.RefObject<React.ElementRef<typeof OrbitControls> | null>
 }) {
   const { camera } = useThree()
 
@@ -1117,7 +1117,7 @@ function SceneContent({
   visualSpeed: number
   highlightedWaypointId: string | null
 }) {
-  const orbitControlsRef = useRef<OrbitControlsImpl | null>(null)
+  const orbitControlsRef = useRef<React.ElementRef<typeof OrbitControls>>(null)
 
   const handleGroundClick = (point: [number, number, number]) => {
     if (onAddWaypoint) {

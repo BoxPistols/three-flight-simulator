@@ -57,46 +57,35 @@ export default function WaypointEditor({
   const [editingWaypoint, setEditingWaypoint] = useState<Waypoint | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
 
-  // 建物に沿った曲線経路のサンプルウェイポイントを追加
+  // 建物外周を周回するサンプルウェイポイントを追加
   const addSampleWaypoints = () => {
-    const samples = [
-      // 高層ビル群の周りを円形に飛行（建物に沿った曲線経路）
-      { latitude: 15, longitude: 15, altitude: 25, speed: 15, rotation: 0 },
-      { latitude: 12, longitude: 18, altitude: 25, speed: 16, rotation: 0 },
-      { latitude: 8, longitude: 20, altitude: 25, speed: 17, rotation: 0 },
-      { latitude: 4, longitude: 21, altitude: 25, speed: 18, rotation: 0 },
-      { latitude: 0, longitude: 22, altitude: 25, speed: 19, rotation: 0 },
-      { latitude: -4, longitude: 21, altitude: 22, speed: 20, rotation: 0 },
-      { latitude: -8, longitude: 20, altitude: 22, speed: 18, rotation: 0 },
-      { latitude: -12, longitude: 18, altitude: 22, speed: 17, rotation: 0 },
-      { latitude: -15, longitude: 15, altitude: 22, speed: 16, rotation: 0 },
-      { latitude: -18, longitude: 12, altitude: 22, speed: 15, rotation: 0 },
-      { latitude: -20, longitude: 8, altitude: 22, speed: 16, rotation: 0 },
-      { latitude: -21, longitude: 4, altitude: 22, speed: 17, rotation: 0 },
-      { latitude: -22, longitude: 0, altitude: 22, speed: 18, rotation: 0 },
-      { latitude: -21, longitude: -4, altitude: 24, speed: 19, rotation: 0 },
-      { latitude: -20, longitude: -8, altitude: 24, speed: 20, rotation: 0 },
-      { latitude: -18, longitude: -12, altitude: 24, speed: 18, rotation: 0 },
-      { latitude: -15, longitude: -15, altitude: 24, speed: 17, rotation: 0 },
-      { latitude: -12, longitude: -18, altitude: 24, speed: 16, rotation: 0 },
-      { latitude: -8, longitude: -20, altitude: 24, speed: 15, rotation: 0 },
-      { latitude: -4, longitude: -21, altitude: 26, speed: 16, rotation: 0 },
-      { latitude: 0, longitude: -22, altitude: 26, speed: 17, rotation: 0 },
-      { latitude: 4, longitude: -21, altitude: 26, speed: 18, rotation: 0 },
-      { latitude: 8, longitude: -20, altitude: 26, speed: 19, rotation: 0 },
-      { latitude: 12, longitude: -18, altitude: 26, speed: 20, rotation: 0 },
-      { latitude: 15, longitude: -15, altitude: 26, speed: 18, rotation: 0 },
-      { latitude: 18, longitude: -12, altitude: 26, speed: 17, rotation: 0 },
-      { latitude: 20, longitude: -8, altitude: 26, speed: 16, rotation: 0 },
-      { latitude: 21, longitude: -4, altitude: 28, speed: 15, rotation: 0 },
-      { latitude: 22, longitude: 0, altitude: 28, speed: 16, rotation: 0 },
-      { latitude: 21, longitude: 4, altitude: 28, speed: 17, rotation: 0 },
-      { latitude: 20, longitude: 8, altitude: 28, speed: 18, rotation: 0 },
-      { latitude: 18, longitude: 12, altitude: 28, speed: 19, rotation: 0 },
-    ]
+    // 建物は ±25（軸上）と±15（対角線上）に配置されているため、
+    // 半径32で円形に周回する経路を作成
+    const radius = 32;
+    const baseAltitude = 50; // 3D空間では altitude * 0.5 = 25
+    const numPoints = 16; // 円周上の点数
 
-    const sampleWaypoints = samples.map((wp, index) => ({
-      id: `sample_${Date.now()}_${index}`,
+    const samples = [];
+    for (let i = 0; i < numPoints; i++) {
+      const angle = (i / numPoints) * 2 * Math.PI;
+      // 座標系: latitude = Z軸, longitude = X軸
+      const latitude = radius * Math.cos(angle);
+      const longitude = radius * Math.sin(angle);
+      // 高度に少し変化をつける（25-30の範囲）
+      const altitudeVariation = 5 * Math.sin(angle * 2);
+      const altitude = baseAltitude + altitudeVariation;
+
+      samples.push({
+        latitude,
+        longitude,
+        altitude,
+        speed: 15 + Math.floor(i % 3) * 2, // 15-19 km/h の範囲で変化
+        rotation: 0,
+      });
+    }
+
+    const sampleWaypoints = samples.map((wp) => ({
+      id: crypto.randomUUID(),
       ...wp,
     }))
 
@@ -107,7 +96,7 @@ export default function WaypointEditor({
     // 速度を20km/h以下に制限
     const limitedSpeed = Math.min(newWaypoint.speed, 20)
     const waypoint: Waypoint = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       ...newWaypoint,
       speed: limitedSpeed,
     }

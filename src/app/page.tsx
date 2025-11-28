@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button, Typography, Paper, Box, Divider, Fade, Chip, LinearProgress, Drawer, IconButton, useMediaQuery, useTheme, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
@@ -11,13 +11,13 @@ import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import DragHandleIcon from '@mui/icons-material/DragHandle';
 import { Waypoint, FlightDebugData } from '@/components/Scene';
 import WaypointEditor from '@/components/WaypointEditor';
 import ThemeToggle from '@/components/ThemeToggle';
 import DebugPanel from '@/components/DebugPanel';
-import { convert3DToLatLon } from '@/lib/coordinateConverter';
 
-const Scene = dynamic(() => import('@/components/Scene'), { 
+const Scene = dynamic(() => import('@/components/Scene'), {
   ssr: false,
   loading: () => (
     <div className="w-full h-full bg-gray-200 flex items-center justify-center">
@@ -26,29 +26,49 @@ const Scene = dynamic(() => import('@/components/Scene'), {
   )
 });
 
-// サンプルウェイポイントを生成する関数
-const generateSampleWaypoints = (): Waypoint[] => {
-  const samples = [
-    { latitude: 15, longitude: 15, altitude: 25, speed: 15, rotation: 0 },
-    { latitude: 12, longitude: 18, altitude: 25, speed: 16, rotation: 0 },
-    { latitude: 8, longitude: 20, altitude: 25, speed: 17, rotation: 0 },
-    { latitude: 4, longitude: 21, altitude: 25, speed: 18, rotation: 0 },
-    { latitude: 0, longitude: 22, altitude: 25, speed: 19, rotation: 0 },
-    { latitude: -4, longitude: 21, altitude: 22, speed: 20, rotation: 0 },
-    { latitude: -8, longitude: 20, altitude: 22, speed: 18, rotation: 0 },
-    { latitude: -12, longitude: 18, altitude: 22, speed: 17, rotation: 0 },
-    { latitude: -15, longitude: 15, altitude: 22, speed: 16, rotation: 0 },
-    { latitude: -18, longitude: 12, altitude: 22, speed: 15, rotation: 0 },
-  ];
+// localStorage キー
+const STORAGE_KEY_VISITED = 'flightSimulator_hasVisited';
 
-  return samples.map((wp, index) => ({
-    id: `sample_${Date.now()}_${index}`,
+// サンプルウェイポイントを生成する関数（建物外周を周回する経路）
+const generateSampleWaypoints = (): Waypoint[] => {
+  // 建物は ±25（軸上）と±15（対角線上）に配置されているため、
+  // 半径32で円形に周回する経路を作成
+  const radius = 32;
+  const baseAltitude = 50; // 3D空間では altitude * 0.5 = 25
+  const numPoints = 16; // 円周上の点数
+
+  const samples = [];
+  for (let i = 0; i < numPoints; i++) {
+    const angle = (i / numPoints) * 2 * Math.PI;
+    // 座標系: latitude = Z軸, longitude = X軸
+    const latitude = radius * Math.cos(angle);
+    const longitude = radius * Math.sin(angle);
+    // 高度に少し変化をつける（25-30の範囲）
+    const altitudeVariation = 5 * Math.sin(angle * 2);
+    const altitude = baseAltitude + altitudeVariation;
+
+    samples.push({
+      latitude,
+      longitude,
+      altitude,
+      speed: 15 + Math.floor(i % 3) * 2, // 15-19 km/h の範囲で変化
+      rotation: 0,
+    });
+  }
+
+  return samples.map((wp) => ({
+    id: crypto.randomUUID(),
     ...wp,
   }));
 };
 
+// サイドバーの幅の制限
+const MIN_DRAWER_WIDTH = 280;
+const MAX_DRAWER_WIDTH = 500;
+const DEFAULT_DRAWER_WIDTH = 320;
+
 export default function Home() {
-  const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
+  const [waypoints, setWaypoints] = useState<Waypoint[]>(() => generateSampleWaypoints());
   const [isFlying, setIsFlying] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [highlightedWaypointId, setHighlightedWaypointId] = useState<string | null>(null);
@@ -56,14 +76,53 @@ export default function Home() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [debugData, setDebugData] = useState<FlightDebugData | null>(null);
   const [showDebugPanel, setShowDebugPanel] = useState(true);
+  const [drawerWidth, setDrawerWidth] = useState(DEFAULT_DRAWER_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeRef = useRef<HTMLDivElement>(null);
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
+  // ドラッグでサイドバーの幅を変更
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing) return;
+    const newWidth = e.clientX;
+    if (newWidth >= MIN_DRAWER_WIDTH && newWidth <= MAX_DRAWER_WIDTH) {
+      setDrawerWidth(newWidth);
+    }
+  }, [isResizing]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing, handleMouseMove, handleMouseUp]);
+
   useEffect(() => {
     setMounted(true);
     // 初回訪問時にオンボーディングを表示
-    const hasVisited = localStorage.getItem('flightSimulator_hasVisited');
+    const hasVisited = localStorage.getItem(STORAGE_KEY_VISITED);
     if (!hasVisited) {
       setShowOnboarding(true);
     }
@@ -91,18 +150,13 @@ export default function Home() {
   };
 
   const handleAddWaypointFromClick = (position: [number, number, number]) => {
-    // 基準点として最初のウェイポイント、または東京駅を使用
-    const reference = waypoints.length > 0
-      ? { latitude: waypoints[0].latitude, longitude: waypoints[0].longitude }
-      : { latitude: 35.6812, longitude: 139.7671 };
-
-    const { latitude, longitude, altitude } = convert3DToLatLon(position[0], position[1], position[2], reference);
-
+    // 3D座標をそのままウェイポイントとして使用
+    // position: [x, y, z] → [longitude, altitude, latitude]
     const newWaypoint: Waypoint = {
-      id: Date.now().toString(),
-      latitude,
-      longitude,
-      altitude,
+      id: crypto.randomUUID(),
+      latitude: position[2],      // Z → latitude
+      longitude: position[0],     // X → longitude
+      altitude: position[1] * 2,  // Y → altitude（スケール戻し）
       speed: 15,
       rotation: 0
     };
@@ -120,25 +174,19 @@ export default function Home() {
 
   const handleOnboardingClose = (loadSample: boolean) => {
     setShowOnboarding(false);
-    localStorage.setItem('flightSimulator_hasVisited', 'true');
+    localStorage.setItem(STORAGE_KEY_VISITED, 'true');
     if (loadSample) {
       setWaypoints(generateSampleWaypoints());
     }
   };
 
   const handleInsertWaypoint = (segmentIndex: number, position: [number, number, number]) => {
-    // 基準点として最初のウェイポイント、または東京駅を使用
-    const reference = waypoints.length > 0
-      ? { latitude: waypoints[0].latitude, longitude: waypoints[0].longitude }
-      : { latitude: 35.6812, longitude: 139.7671 };
-
-    const { latitude, longitude, altitude } = convert3DToLatLon(position[0], position[1], position[2], reference);
-
+    // 3D座標をそのままウェイポイントとして使用
     const newWaypoint: Waypoint = {
-      id: Date.now().toString(),
-      latitude,
-      longitude,
-      altitude,
+      id: crypto.randomUUID(),
+      latitude: position[2],      // Z → latitude
+      longitude: position[0],     // X → longitude
+      altitude: position[1] * 2,  // Y → altitude（スケール戻し）
       speed: 15,
       rotation: 0
     };
@@ -173,23 +221,23 @@ export default function Home() {
     );
   }
 
-  const drawerWidth = 320;
-
   const drawerContent = (
-    <Box
-      sx={{
-        width: drawerWidth,
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 2,
-        p: 2.5,
-        background: (theme) =>
-          theme.palette.mode === 'dark'
-            ? 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)'
-            : 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
-      }}
-    >
+    <Box sx={{ display: 'flex', height: '100%' }}>
+      <Box
+        sx={{
+          flex: 1,
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+          p: 2.5,
+          overflow: 'auto',
+          background: (theme) =>
+            theme.palette.mode === 'dark'
+              ? 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)'
+              : 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+        }}
+      >
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <FlightTakeoffIcon sx={{ fontSize: 28, color: 'primary.main' }} />
@@ -317,11 +365,43 @@ export default function Home() {
           </Box>
         </Paper>
       </Box>
+      </Box>
+      {/* リサイズハンドル（デスクトップのみ） */}
+      {!isMobile && (
+        <Tooltip title="ドラッグで幅を調整" placement="right" arrow>
+          <Box
+            ref={resizeRef}
+            onMouseDown={handleMouseDown}
+            sx={{
+              width: 8,
+              height: '100%',
+              cursor: 'col-resize',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              bgcolor: isResizing ? 'primary.main' : 'transparent',
+              transition: 'background-color 0.2s',
+              '&:hover': {
+                bgcolor: 'action.hover',
+              },
+            }}
+          >
+            <DragHandleIcon
+              sx={{
+                transform: 'rotate(90deg)',
+                fontSize: 16,
+                color: isResizing ? 'primary.contrastText' : 'text.secondary',
+                opacity: 0.7,
+              }}
+            />
+          </Box>
+        </Tooltip>
+      )}
     </Box>
   );
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex', bgcolor: 'background.default' }}>
+    <Box sx={{ height: '100vh', display: 'flex', bgcolor: 'background.default', overflow: 'hidden' }}>
       {/* サイドパネル（Drawer - デスクトップ/モバイル共通でトグル可能） */}
       <Drawer
         anchor="left"
@@ -338,6 +418,7 @@ export default function Home() {
             boxSizing: 'border-box',
             width: drawerWidth,
             position: isMobile ? 'fixed' : 'relative',
+            overflow: 'visible',
           },
         }}
       >
