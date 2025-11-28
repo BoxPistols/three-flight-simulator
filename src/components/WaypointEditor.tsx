@@ -84,8 +84,8 @@ export default function WaypointEditor({
       });
     }
 
-    const sampleWaypoints = samples.map((wp, index) => ({
-      id: `sample_${Date.now()}_${index}`,
+    const sampleWaypoints = samples.map((wp) => ({
+      id: crypto.randomUUID(),
       ...wp,
     }))
 
@@ -96,7 +96,7 @@ export default function WaypointEditor({
     // 速度を20km/h以下に制限
     const limitedSpeed = Math.min(newWaypoint.speed, 20)
     const waypoint: Waypoint = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       ...newWaypoint,
       speed: limitedSpeed,
     }

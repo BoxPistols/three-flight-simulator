@@ -17,7 +17,7 @@ import WaypointEditor from '@/components/WaypointEditor';
 import ThemeToggle from '@/components/ThemeToggle';
 import DebugPanel from '@/components/DebugPanel';
 
-const Scene = dynamic(() => import('@/components/Scene'), { 
+const Scene = dynamic(() => import('@/components/Scene'), {
   ssr: false,
   loading: () => (
     <div className="w-full h-full bg-gray-200 flex items-center justify-center">
@@ -25,6 +25,9 @@ const Scene = dynamic(() => import('@/components/Scene'), {
     </div>
   )
 });
+
+// localStorage キー
+const STORAGE_KEY_VISITED = 'flightSimulator_hasVisited';
 
 // サンプルウェイポイントを生成する関数（建物外周を周回する経路）
 const generateSampleWaypoints = (): Waypoint[] => {
@@ -53,8 +56,8 @@ const generateSampleWaypoints = (): Waypoint[] => {
     });
   }
 
-  return samples.map((wp, index) => ({
-    id: `sample_${Date.now()}_${index}`,
+  return samples.map((wp) => ({
+    id: crypto.randomUUID(),
     ...wp,
   }));
 };
@@ -119,7 +122,7 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
     // 初回訪問時にオンボーディングを表示
-    const hasVisited = localStorage.getItem('flightSimulator_hasVisited');
+    const hasVisited = localStorage.getItem(STORAGE_KEY_VISITED);
     if (!hasVisited) {
       setShowOnboarding(true);
     }
@@ -150,7 +153,7 @@ export default function Home() {
     // 3D座標をそのままウェイポイントとして使用
     // position: [x, y, z] → [longitude, altitude, latitude]
     const newWaypoint: Waypoint = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       latitude: position[2],      // Z → latitude
       longitude: position[0],     // X → longitude
       altitude: position[1] * 2,  // Y → altitude（スケール戻し）
@@ -171,7 +174,7 @@ export default function Home() {
 
   const handleOnboardingClose = (loadSample: boolean) => {
     setShowOnboarding(false);
-    localStorage.setItem('flightSimulator_hasVisited', 'true');
+    localStorage.setItem(STORAGE_KEY_VISITED, 'true');
     if (loadSample) {
       setWaypoints(generateSampleWaypoints());
     }
@@ -180,7 +183,7 @@ export default function Home() {
   const handleInsertWaypoint = (segmentIndex: number, position: [number, number, number]) => {
     // 3D座標をそのままウェイポイントとして使用
     const newWaypoint: Waypoint = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       latitude: position[2],      // Z → latitude
       longitude: position[0],     // X → longitude
       altitude: position[1] * 2,  // Y → altitude（スケール戻し）
