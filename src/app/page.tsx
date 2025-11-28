@@ -15,7 +15,6 @@ import { Waypoint, FlightDebugData } from '@/components/Scene';
 import WaypointEditor from '@/components/WaypointEditor';
 import ThemeToggle from '@/components/ThemeToggle';
 import DebugPanel from '@/components/DebugPanel';
-import { convert3DToLatLon } from '@/lib/coordinateConverter';
 
 const Scene = dynamic(() => import('@/components/Scene'), { 
   ssr: false,
@@ -26,20 +25,32 @@ const Scene = dynamic(() => import('@/components/Scene'), {
   )
 });
 
-// サンプルウェイポイントを生成する関数
+// サンプルウェイポイントを生成する関数（建物外周を周回する経路）
 const generateSampleWaypoints = (): Waypoint[] => {
-  const samples = [
-    { latitude: 15, longitude: 15, altitude: 25, speed: 15, rotation: 0 },
-    { latitude: 12, longitude: 18, altitude: 25, speed: 16, rotation: 0 },
-    { latitude: 8, longitude: 20, altitude: 25, speed: 17, rotation: 0 },
-    { latitude: 4, longitude: 21, altitude: 25, speed: 18, rotation: 0 },
-    { latitude: 0, longitude: 22, altitude: 25, speed: 19, rotation: 0 },
-    { latitude: -4, longitude: 21, altitude: 22, speed: 20, rotation: 0 },
-    { latitude: -8, longitude: 20, altitude: 22, speed: 18, rotation: 0 },
-    { latitude: -12, longitude: 18, altitude: 22, speed: 17, rotation: 0 },
-    { latitude: -15, longitude: 15, altitude: 22, speed: 16, rotation: 0 },
-    { latitude: -18, longitude: 12, altitude: 22, speed: 15, rotation: 0 },
-  ];
+  // 建物は ±25（軸上）と±15（対角線上）に配置されているため、
+  // 半径32で円形に周回する経路を作成
+  const radius = 32;
+  const baseAltitude = 50; // 3D空間では altitude * 0.5 = 25
+  const numPoints = 16; // 円周上の点数
+
+  const samples = [];
+  for (let i = 0; i < numPoints; i++) {
+    const angle = (i / numPoints) * 2 * Math.PI;
+    // 座標系: latitude = Z軸, longitude = X軸
+    const latitude = radius * Math.cos(angle);
+    const longitude = radius * Math.sin(angle);
+    // 高度に少し変化をつける（25-30の範囲）
+    const altitudeVariation = 5 * Math.sin(angle * 2);
+    const altitude = baseAltitude + altitudeVariation;
+
+    samples.push({
+      latitude,
+      longitude,
+      altitude,
+      speed: 15 + Math.floor(i % 3) * 2, // 15-19 km/h の範囲で変化
+      rotation: 0,
+    });
+  }
 
   return samples.map((wp, index) => ({
     id: `sample_${Date.now()}_${index}`,
@@ -91,18 +102,13 @@ export default function Home() {
   };
 
   const handleAddWaypointFromClick = (position: [number, number, number]) => {
-    // 基準点として最初のウェイポイント、または東京駅を使用
-    const reference = waypoints.length > 0
-      ? { latitude: waypoints[0].latitude, longitude: waypoints[0].longitude }
-      : { latitude: 35.6812, longitude: 139.7671 };
-
-    const { latitude, longitude, altitude } = convert3DToLatLon(position[0], position[1], position[2], reference);
-
+    // 3D座標をそのままウェイポイントとして使用
+    // position: [x, y, z] → [longitude, altitude, latitude]
     const newWaypoint: Waypoint = {
       id: Date.now().toString(),
-      latitude,
-      longitude,
-      altitude,
+      latitude: position[2],      // Z → latitude
+      longitude: position[0],     // X → longitude
+      altitude: position[1] * 2,  // Y → altitude（スケール戻し）
       speed: 15,
       rotation: 0
     };
@@ -127,18 +133,12 @@ export default function Home() {
   };
 
   const handleInsertWaypoint = (segmentIndex: number, position: [number, number, number]) => {
-    // 基準点として最初のウェイポイント、または東京駅を使用
-    const reference = waypoints.length > 0
-      ? { latitude: waypoints[0].latitude, longitude: waypoints[0].longitude }
-      : { latitude: 35.6812, longitude: 139.7671 };
-
-    const { latitude, longitude, altitude } = convert3DToLatLon(position[0], position[1], position[2], reference);
-
+    // 3D座標をそのままウェイポイントとして使用
     const newWaypoint: Waypoint = {
       id: Date.now().toString(),
-      latitude,
-      longitude,
-      altitude,
+      latitude: position[2],      // Z → latitude
+      longitude: position[0],     // X → longitude
+      altitude: position[1] * 2,  // Y → altitude（スケール戻し）
       speed: 15,
       rotation: 0
     };
