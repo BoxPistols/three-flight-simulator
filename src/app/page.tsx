@@ -7,7 +7,6 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import MenuIcon from '@mui/icons-material/Menu';
-import CloseIcon from '@mui/icons-material/Close';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
 import BugReportIcon from '@mui/icons-material/BugReport';

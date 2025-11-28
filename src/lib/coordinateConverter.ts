@@ -83,8 +83,7 @@ export const convert3DToLatLon = (
  * latitude/longitudeの値が相対座標として使用される（シーン内の位置）
  */
 export const convertWaypointsTo3D = (
-  waypoints: Array<{ latitude: number; longitude: number; altitude: number }>,
-  referenceIndex = 0
+  waypoints: Array<{ latitude: number; longitude: number; altitude: number }>
 ) => {
   if (waypoints.length === 0) return [];
 

@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, forwardRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
+import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { convertWaypointsTo3D } from '@/lib/coordinateConverter'
 import * as THREE from 'three'
 
@@ -278,7 +279,7 @@ function AnimatedDrone({
   isFlying: boolean
   onFlightComplete?: () => void
   onDebugDataUpdate?: (data: FlightDebugData) => void
-  orbitControlsRef: React.RefObject<any>
+  orbitControlsRef: React.RefObject<OrbitControlsImpl | null>
   visualSpeed?: number // 追加
 }) {
   const droneRef = useRef<THREE.Group>(null)
@@ -531,7 +532,7 @@ function DroneCamera({
 }: {
   droneRef: React.RefObject<THREE.Group | null>
   isFlying: boolean
-  orbitControlsRef: React.RefObject<any>
+  orbitControlsRef: React.RefObject<OrbitControlsImpl | null>
 }) {
   const { camera } = useThree()
 
@@ -1116,7 +1117,7 @@ function SceneContent({
   visualSpeed: number
   highlightedWaypointId: string | null
 }) {
-  const orbitControlsRef = useRef<any>(null)
+  const orbitControlsRef = useRef<OrbitControlsImpl | null>(null)
 
   const handleGroundClick = (point: [number, number, number]) => {
     if (onAddWaypoint) {
