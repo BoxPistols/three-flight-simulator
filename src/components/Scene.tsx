@@ -271,12 +271,14 @@ function AnimatedDrone({
   isFlying,
   onFlightComplete,
   onDebugDataUpdate,
+  orbitControlsRef,
   visualSpeed = 1.0, // 視覚的な飛行速度を制御するパラメータを追加
 }: {
   waypoints: Waypoint[]
   isFlying: boolean
   onFlightComplete?: () => void
   onDebugDataUpdate?: (data: FlightDebugData) => void
+  orbitControlsRef: React.RefObject<any>
   visualSpeed?: number // 追加
 }) {
   const droneRef = useRef<THREE.Group>(null)
@@ -407,7 +409,7 @@ function AnimatedDrone({
   return (
     <>
       <DroneModel ref={droneRef} />
-      <DroneCamera droneRef={droneRef} isFlying={isFlying} />
+      <DroneCamera droneRef={droneRef} isFlying={isFlying} orbitControlsRef={orbitControlsRef} />
     </>
   )
 }
@@ -442,34 +444,30 @@ function ClickRipple({ position }: { position: [number, number, number] }) {
 // クリック可能な地面コンポーネント
 function ClickableGround({
   onGroundClick,
-  isFlying,
 }: {
   onGroundClick: (point: [number, number, number]) => void
-  isFlying: boolean
 }) {
   const [clickRipples, setClickRipples] = React.useState<Array<{ id: number; position: [number, number, number] }>>([])
   const clickState = useRef({
     isDragging: false,
     downPoint: null as THREE.Vector3 | null,
+    downTime: 0,
   })
 
   const handlePointerDown = (
     e: import('@react-three/fiber').ThreeEvent<PointerEvent>
   ) => {
-    if (isFlying) return
     clickState.current.isDragging = false
-    clickState.current.downPoint = e.point
-    // イベントの伝播を止めてOrbitControlsの動作を一旦抑制
-    e.stopPropagation()
+    clickState.current.downPoint = e.point.clone()
+    clickState.current.downTime = Date.now()
   }
 
   const handlePointerMove = (
     e: import('@react-three/fiber').ThreeEvent<PointerEvent>
   ) => {
-    if (isFlying) return
     if (clickState.current.downPoint) {
-      // 閾値を超えて動いたらドラッグとみなす
-      if (e.point.distanceTo(clickState.current.downPoint) > 0.1) {
+      // 閾値を超えて動いたらドラッグとみなす（閾値を大きく）
+      if (e.point.distanceTo(clickState.current.downPoint) > 2) {
         clickState.current.isDragging = true
       }
     }
@@ -478,9 +476,10 @@ function ClickableGround({
   const handlePointerUp = (
     e: import('@react-three/fiber').ThreeEvent<PointerEvent>
   ) => {
-    if (isFlying) return
-    // ドラッグ中でなければクリックと判断
-    if (!clickState.current.isDragging) {
+    const clickDuration = Date.now() - clickState.current.downTime
+
+    // ドラッグ中でなく、クリック時間が短い場合のみ（500ms以下）
+    if (!clickState.current.isDragging && clickDuration < 500) {
       const point = e.point
 
       // リップル効果を追加
@@ -492,7 +491,7 @@ function ClickableGround({
         setClickRipples(current => current.filter(r => r.id !== ripple.id))
       }, 1000)
 
-      onGroundClick([point.x, point.y + 50, point.z]) // 空中50mの高さに設定
+      onGroundClick([point.x, 15, point.z]) // 高度15に設定
     }
     // リセット
     clickState.current.isDragging = false
@@ -513,8 +512,6 @@ function ClickableGround({
           color={COLORS.environment.ground}
           roughness={0.9}
           metalness={0.1}
-          transparent={!isFlying}
-          opacity={isFlying ? 1 : 0.95}
         />
       </mesh>
 
@@ -530,42 +527,32 @@ function ClickableGround({
 function DroneCamera({
   droneRef,
   isFlying,
+  orbitControlsRef,
 }: {
   droneRef: React.RefObject<THREE.Group | null>
   isFlying: boolean
+  orbitControlsRef: React.RefObject<any>
 }) {
   const { camera } = useThree()
 
   useFrame(() => {
-    if (isFlying && droneRef.current) {
+    if (isFlying && droneRef.current && orbitControlsRef.current) {
       const dronePosition = droneRef.current.position
-      const droneRotation = droneRef.current.rotation
 
-      // ドローンの少し後ろかつ上にカメラを配置（FPVスタイル）
-      const offset = new THREE.Vector3(0, 0.5, -1.5)
-      offset.applyEuler(droneRotation)
+      // OrbitControlsのターゲットをドローン位置に追従させる
+      // これによりユーザーはズームや回転が可能
+      const target = orbitControlsRef.current.target as THREE.Vector3
+      target.lerp(dronePosition, 0.1)
 
-      const cameraPosition = dronePosition.clone().add(offset)
-      // カメラ位置をスムーズに補間（係数を大きくして追従を滑らかに）
-      camera.position.lerp(cameraPosition, 0.2)
+      // カメラもドローンに向かって緩やかに移動（遠すぎる場合のみ）
+      const distanceToTarget = camera.position.distanceTo(dronePosition)
+      if (distanceToTarget > 50) {
+        const idealPosition = dronePosition.clone().add(new THREE.Vector3(15, 20, 15))
+        camera.position.lerp(idealPosition, 0.05)
+      }
 
-      // ドローンの進行方向を見る
-      const forward = new THREE.Vector3(0, 0, 1)
-      forward.applyEuler(droneRotation)
-      const lookAtPosition = dronePosition.clone().add(forward)
-
-      // lookAtもスムーズに（クォータニオンで制御、係数を大きくして追従を滑らかに）
-      const targetMatrix = new THREE.Matrix4().lookAt(
-        camera.position,
-        lookAtPosition,
-        camera.up
-      )
-      const targetQuaternion = new THREE.Quaternion().setFromRotationMatrix(
-        targetMatrix
-      )
-      camera.quaternion.slerp(targetQuaternion, 0.2)
+      orbitControlsRef.current.update()
     }
-    // !isFlyingの時は何もしない (OrbitControlsに制御を任せる)
   })
 
   return null
@@ -1107,17 +1094,30 @@ export interface SceneProps {
   highlightedWaypointId?: string | null
 }
 
-export default function Scene({
-  waypoints = [],
-  isFlying = false,
+// OrbitControls用のラッパーコンポーネント
+function SceneContent({
+  waypoints,
+  isFlying,
   onAddWaypoint,
   onInsertWaypoint,
   onRemoveWaypoint,
-  onFlightComplete = () => {},
+  onFlightComplete,
   onDebugDataUpdate,
-  visualSpeed = 1.0,
-  highlightedWaypointId = null,
-}: SceneProps) {
+  visualSpeed,
+  highlightedWaypointId,
+}: {
+  waypoints: Waypoint[]
+  isFlying: boolean
+  onAddWaypoint?: (position: [number, number, number]) => void
+  onInsertWaypoint?: (segmentIndex: number, position: [number, number, number]) => void
+  onRemoveWaypoint?: (id: string) => void
+  onFlightComplete: () => void
+  onDebugDataUpdate?: (data: FlightDebugData) => void
+  visualSpeed: number
+  highlightedWaypointId: string | null
+}) {
+  const orbitControlsRef = useRef<any>(null)
+
   const handleGroundClick = (point: [number, number, number]) => {
     if (onAddWaypoint) {
       onAddWaypoint(point)
@@ -1131,17 +1131,14 @@ export default function Scene({
   }
 
   return (
-    <Canvas
-      className='w-full h-full'
-      camera={{ position: [20, 25, 20], fov: 45 }}
-    >
+    <>
       <color attach='background' args={[COLORS.environment.sky]} />
       <ambientLight intensity={0.6} />
       <directionalLight position={[10, 10, 10]} intensity={1} />
       <pointLight position={[0, 10, 0]} intensity={0.5} />
 
       {/* クリック可能な地面 */}
-      <ClickableGround onGroundClick={handleGroundClick} isFlying={isFlying} />
+      <ClickableGround onGroundClick={handleGroundClick} />
 
       {/* ウェイポイントマーカー */}
       <WaypointMarkers
@@ -1159,43 +1156,60 @@ export default function Scene({
         isFlying={isFlying}
         onFlightComplete={onFlightComplete}
         onDebugDataUpdate={onDebugDataUpdate}
+        orbitControlsRef={orbitControlsRef}
         visualSpeed={visualSpeed}
       />
 
       {/* 建物群 */}
       <CityBuildings />
 
-      {/* OrbitControlsの引力制御を完全に無効化 */}
+      {/* OrbitControls */}
       <OrbitControls
+        ref={orbitControlsRef}
         enablePan={true}
         enableZoom={true}
         enableRotate={true}
-        enableDamping={false} // ダンピングを無効化
-        dampingFactor={0.0}
-        rotateSpeed={1.0}
-        zoomSpeed={1.0}
-        panSpeed={2.0}
-        minDistance={0.01}
-        maxDistance={100000}
-        minPolarAngle={0}
-        maxPolarAngle={Math.PI}
-        minAzimuthAngle={-Infinity}
-        maxAzimuthAngle={Infinity}
-        keyPanSpeed={10.0}
-        screenSpacePanning={true}
-        mouseButtons={{
-          LEFT: THREE.MOUSE.ROTATE,
-          MIDDLE: THREE.MOUSE.DOLLY,
-          RIGHT: THREE.MOUSE.PAN,
-        }}
-        touches={{
-          ONE: THREE.TOUCH.ROTATE,
-          TWO: THREE.TOUCH.DOLLY_PAN,
-        }}
-        // 引力制御を完全に無効化
-        target={new THREE.Vector3(0, 0, 0)} // 固定ターゲット
-        autoRotate={false} // 自動回転を無効化
-        autoRotateSpeed={0} // 自動回転速度を0に
+        enableDamping={true}
+        dampingFactor={0.05}
+        rotateSpeed={0.8}
+        zoomSpeed={1.2}
+        panSpeed={1.0}
+        minDistance={5}
+        maxDistance={200}
+        minPolarAngle={0.1}
+        maxPolarAngle={Math.PI / 2 - 0.1}
+        target={new THREE.Vector3(0, 10, 0)}
+      />
+    </>
+  )
+}
+
+export default function Scene({
+  waypoints = [],
+  isFlying = false,
+  onAddWaypoint,
+  onInsertWaypoint,
+  onRemoveWaypoint,
+  onFlightComplete = () => {},
+  onDebugDataUpdate,
+  visualSpeed = 1.0,
+  highlightedWaypointId = null,
+}: SceneProps) {
+  return (
+    <Canvas
+      className='w-full h-full'
+      camera={{ position: [30, 40, 30], fov: 50 }}
+    >
+      <SceneContent
+        waypoints={waypoints}
+        isFlying={isFlying}
+        onAddWaypoint={onAddWaypoint}
+        onInsertWaypoint={onInsertWaypoint}
+        onRemoveWaypoint={onRemoveWaypoint}
+        onFlightComplete={onFlightComplete}
+        onDebugDataUpdate={onDebugDataUpdate}
+        visualSpeed={visualSpeed}
+        highlightedWaypointId={highlightedWaypointId}
       />
     </Canvas>
   )
