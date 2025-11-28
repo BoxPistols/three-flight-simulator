@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, forwardRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
+import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { convertWaypointsTo3D } from '@/lib/coordinateConverter'
 import * as THREE from 'three'
 
