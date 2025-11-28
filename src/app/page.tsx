@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button, Typography, Paper, Box, Divider, Fade, Chip, LinearProgress, Drawer, IconButton, useMediaQuery, useTheme, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
@@ -11,6 +11,7 @@ import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import DragHandleIcon from '@mui/icons-material/DragHandle';
 import { Waypoint, FlightDebugData } from '@/components/Scene';
 import WaypointEditor from '@/components/WaypointEditor';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -58,8 +59,13 @@ const generateSampleWaypoints = (): Waypoint[] => {
   }));
 };
 
+// サイドバーの幅の制限
+const MIN_DRAWER_WIDTH = 280;
+const MAX_DRAWER_WIDTH = 500;
+const DEFAULT_DRAWER_WIDTH = 320;
+
 export default function Home() {
-  const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
+  const [waypoints, setWaypoints] = useState<Waypoint[]>(() => generateSampleWaypoints());
   const [isFlying, setIsFlying] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [highlightedWaypointId, setHighlightedWaypointId] = useState<string | null>(null);
@@ -67,9 +73,48 @@ export default function Home() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [debugData, setDebugData] = useState<FlightDebugData | null>(null);
   const [showDebugPanel, setShowDebugPanel] = useState(true);
+  const [drawerWidth, setDrawerWidth] = useState(DEFAULT_DRAWER_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeRef = useRef<HTMLDivElement>(null);
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  // ドラッグでサイドバーの幅を変更
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing) return;
+    const newWidth = e.clientX;
+    if (newWidth >= MIN_DRAWER_WIDTH && newWidth <= MAX_DRAWER_WIDTH) {
+      setDrawerWidth(newWidth);
+    }
+  }, [isResizing]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing, handleMouseMove, handleMouseUp]);
 
   useEffect(() => {
     setMounted(true);
@@ -173,23 +218,23 @@ export default function Home() {
     );
   }
 
-  const drawerWidth = 320;
-
   const drawerContent = (
-    <Box
-      sx={{
-        width: drawerWidth,
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 2,
-        p: 2.5,
-        background: (theme) =>
-          theme.palette.mode === 'dark'
-            ? 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)'
-            : 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
-      }}
-    >
+    <Box sx={{ display: 'flex', height: '100%' }}>
+      <Box
+        sx={{
+          flex: 1,
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+          p: 2.5,
+          overflow: 'auto',
+          background: (theme) =>
+            theme.palette.mode === 'dark'
+              ? 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)'
+              : 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+        }}
+      >
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <FlightTakeoffIcon sx={{ fontSize: 28, color: 'primary.main' }} />
@@ -317,11 +362,43 @@ export default function Home() {
           </Box>
         </Paper>
       </Box>
+      </Box>
+      {/* リサイズハンドル（デスクトップのみ） */}
+      {!isMobile && (
+        <Tooltip title="ドラッグで幅を調整" placement="right" arrow>
+          <Box
+            ref={resizeRef}
+            onMouseDown={handleMouseDown}
+            sx={{
+              width: 8,
+              height: '100%',
+              cursor: 'col-resize',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              bgcolor: isResizing ? 'primary.main' : 'transparent',
+              transition: 'background-color 0.2s',
+              '&:hover': {
+                bgcolor: 'action.hover',
+              },
+            }}
+          >
+            <DragHandleIcon
+              sx={{
+                transform: 'rotate(90deg)',
+                fontSize: 16,
+                color: isResizing ? 'primary.contrastText' : 'text.secondary',
+                opacity: 0.7,
+              }}
+            />
+          </Box>
+        </Tooltip>
+      )}
     </Box>
   );
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex', bgcolor: 'background.default' }}>
+    <Box sx={{ height: '100vh', display: 'flex', bgcolor: 'background.default', overflow: 'hidden' }}>
       {/* サイドパネル（Drawer - デスクトップ/モバイル共通でトグル可能） */}
       <Drawer
         anchor="left"
@@ -338,6 +415,7 @@ export default function Home() {
             boxSizing: 'border-box',
             width: drawerWidth,
             position: isMobile ? 'fixed' : 'relative',
+            overflow: 'visible',
           },
         }}
       >
