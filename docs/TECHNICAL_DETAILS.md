@@ -53,9 +53,30 @@
 ## 状態管理（flight-plan/store.ts）
 
 - Zustand + `persist` ミドルウェア（localStorage キー: `flight-simulator-plan`）
-- 永続化対象は `waypoints` と `clickAltitude` のみ（選択状態は揮発）
+- 永続化対象は `waypoints` と `clickAltitude` のみ（選択状態・履歴は揮発）
 - 配列操作のロジックは `model.ts` の純関数（`insertWaypointAt` / `moveWaypointById` など）に委譲
 - 飛行中フラグ・カメラモード・フライト状態は `page.tsx` のローカル state（セッション限りで良いため）
+
+### Undo / Redo
+
+- `past` / `future` の2スタックで実装（各最大50ステップ）
+- 全ての破壊的アクションは変更前に現在の `waypoints` を `past` に積み、`future` をクリア
+- ドラッグは `beginDrag()` で1度だけ履歴を積み、`dragWaypoint()` は履歴を積まずに位置更新（1ドラッグ=1 Undo単位）
+- `undo()` / `redo()` は Ctrl/⌘+Z・Ctrl/⌘+Shift+Z にバインド
+
+## 3Dドラッグ移動（viewer/WaypointMarkers.tsx）
+
+- マーカーの `onPointerDown` で `window` に pointermove/up リスナーを登録
+- 画面座標をカメラのレイと水平面（y=マーカー高度）の交点に射影して新しい X/Z を算出
+- 4px 未満の移動はクリック（＝選択）、それ以上はドラッグとして扱う
+- ドラッグ中は `CameraRig` の OrbitControls を `locked` で無効化
+- 位置は地面範囲にクランプし 0.1m 単位に丸める
+
+## ポストプロセス（viewer/Scene.tsx）
+
+- `@react-three/postprocessing` の `EffectComposer` で Bloom と Vignette を適用
+- 夜モードでは Bloom を強め（intensity 1.15 / 閾値 0.6）、窓明かり・航行灯・発光経路を強調
+- 昼モードは控えめ（intensity 0.3 / 閾値 0.85）にして白飛びを防ぐ
 
 ## カメラ制御（viewer/CameraRig.tsx）
 
@@ -79,6 +100,7 @@ npm test
 - `simulation/engine.test.ts` — 実単位の移動・進捗・境界条件（開始/終了/ゼロ長セグメント）
 - `simulation/collision.test.ts` — スラブ法の交差判定（貫通・上空通過・内部始点）
 - `flight-plan/model.test.ts` — プラン操作の不変性・クランプ・入出力ラウンドトリップ
+- `flight-plan/store.test.ts` — Undo/Redo の履歴挙動（分岐破棄・ドラッグ1単位化）
 
 ドメイン層はDOM・Three.jsに依存しないため、Node環境で高速に実行できます。
 

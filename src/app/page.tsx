@@ -24,6 +24,9 @@ import {
 import { alpha } from '@mui/material/styles'
 import CenterFocusStrongIcon from '@mui/icons-material/CenterFocusStrong'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
+import KeyboardIcon from '@mui/icons-material/Keyboard'
+import RedoIcon from '@mui/icons-material/Redo'
+import UndoIcon from '@mui/icons-material/Undo'
 import DragHandleIcon from '@mui/icons-material/DragHandle'
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff'
 import MenuIcon from '@mui/icons-material/Menu'
@@ -49,6 +52,7 @@ import {
 } from '@/features/viewer/CameraRig'
 import { BUILDING_AABBS } from '@/features/viewer/city'
 import ThemeToggle from '@/components/ThemeToggle'
+import ShortcutsDialog from '@/components/ShortcutsDialog'
 
 const Scene = dynamic(() => import('@/features/viewer/Scene'), {
   ssr: false,
@@ -89,6 +93,12 @@ export default function Home() {
   const selectWaypoint = useFlightPlanStore((s) => s.selectWaypoint)
   const removeWaypoint = useFlightPlanStore((s) => s.removeWaypoint)
   const loadSample = useFlightPlanStore((s) => s.loadSample)
+  const beginDrag = useFlightPlanStore((s) => s.beginDrag)
+  const dragWaypoint = useFlightPlanStore((s) => s.dragWaypoint)
+  const undo = useFlightPlanStore((s) => s.undo)
+  const redo = useFlightPlanStore((s) => s.redo)
+  const canUndo = useFlightPlanStore((s) => s.past.length > 0)
+  const canRedo = useFlightPlanStore((s) => s.future.length > 0)
 
   const [mounted, setMounted] = useState(false)
   const [isFlying, setIsFlying] = useState(false)
@@ -98,6 +108,7 @@ export default function Home() {
   const [drawerWidth, setDrawerWidth] = useState(DEFAULT_DRAWER_WIDTH)
   const [isResizing, setIsResizing] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
 
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
@@ -179,6 +190,25 @@ export default function Home() {
       ) {
         return
       }
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        if (!isFlying) {
+          if (e.shiftKey) redo()
+          else undo()
+        }
+        return
+      }
+      if (mod && e.key.toLowerCase() === 'y') {
+        e.preventDefault()
+        if (!isFlying) redo()
+        return
+      }
+      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+        e.preventDefault()
+        setShowShortcuts((v) => !v)
+        return
+      }
       if (e.code === 'Space') {
         e.preventDefault()
         if (isFlying) handleStopFlight()
@@ -190,7 +220,15 @@ export default function Home() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isFlying, selectedId, handleStartFlight, handleStopFlight, removeWaypoint])
+  }, [
+    isFlying,
+    selectedId,
+    handleStartFlight,
+    handleStopFlight,
+    removeWaypoint,
+    undo,
+    redo,
+  ])
 
   // ---- 3Dシーンからのイベント ----
   const handleGroundClick = useCallback(
@@ -391,9 +429,9 @@ export default function Home() {
             >
               <li>地面クリック: ウェイポイント追加</li>
               <li>経路クリック: 途中に挿入</li>
-              <li>マーカークリック: 選択（編集・削除は一覧から）</li>
-              <li>Space: フライト開始/停止・Delete: 選択を削除</li>
-              <li>ドラッグ: 視点回転・ホイール: ズーム</li>
+              <li>マーカーをドラッグ: 水平移動 / クリック: 選択</li>
+              <li>Space: 飛行・Delete: 削除・Ctrl+Z: 取り消し</li>
+              <li>「?」キーで全ショートカットを表示</li>
             </Box>
           </Paper>
         </Box>
@@ -568,6 +606,37 @@ export default function Home() {
               flexItem
               sx={{ my: 1.5, display: { xs: 'none', sm: 'block' } }}
             />
+            <Box sx={{ display: { xs: 'none', sm: 'flex' } }}>
+              <Tooltip title="元に戻す（Ctrl+Z）" arrow>
+                <span>
+                  <IconButton
+                    size="small"
+                    onClick={undo}
+                    disabled={!canUndo || isFlying}
+                    aria-label="元に戻す"
+                  >
+                    <UndoIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title="やり直す（Ctrl+Shift+Z）" arrow>
+                <span>
+                  <IconButton
+                    size="small"
+                    onClick={redo}
+                    disabled={!canRedo || isFlying}
+                    aria-label="やり直す"
+                  >
+                    <RedoIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </Box>
+            <Divider
+              orientation="vertical"
+              flexItem
+              sx={{ my: 1.5, display: { xs: 'none', sm: 'block' } }}
+            />
             <Tooltip title="飛行中のカメラ視点" arrow>
               <ToggleButtonGroup
                 value={cameraMode}
@@ -591,6 +660,16 @@ export default function Home() {
                 ))}
               </ToggleButtonGroup>
             </Tooltip>
+            <Tooltip title="キーボードショートカット（?）" arrow>
+              <IconButton
+                size="small"
+                onClick={() => setShowShortcuts(true)}
+                aria-label="キーボードショートカット"
+                sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+              >
+                <KeyboardIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <ThemeToggle />
           </Box>
         </Box>
@@ -609,6 +688,8 @@ export default function Home() {
             onSelectWaypoint={(id) =>
               selectWaypoint(id === selectedId ? null : id)
             }
+            onWaypointDragBegin={beginDrag}
+            onWaypointDrag={dragWaypoint}
             onFlightUpdate={setFlightState}
             onFlightComplete={handleFlightComplete}
           />
@@ -739,6 +820,12 @@ export default function Home() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* キーボードショートカット */}
+      <ShortcutsDialog
+        open={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
+      />
     </Box>
   )
 }

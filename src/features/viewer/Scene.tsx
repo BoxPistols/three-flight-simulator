@@ -1,8 +1,9 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Sky, Stars } from '@react-three/drei'
+import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import type { Waypoint } from '@/features/flight-plan/model'
 import type { FlightState } from '@/features/simulation/engine'
@@ -28,6 +29,8 @@ export interface SceneProps {
     point: [number, number, number]
   ) => void
   onSelectWaypoint?: (id: string) => void
+  onWaypointDragBegin?: () => void
+  onWaypointDrag?: (id: string, x: number, z: number) => void
   onFlightUpdate?: (state: FlightState) => void
   onFlightComplete?: () => void
 }
@@ -38,6 +41,7 @@ export default function Scene(props: SceneProps) {
     <Canvas
       shadows
       dpr={[1, 2]}
+      gl={{ antialias: true }}
       camera={{ position: [55, 55, 55], fov: 50 }}
     >
       <SceneContent {...props} />
@@ -55,11 +59,15 @@ function SceneContent({
   onGroundClick,
   onSegmentClick,
   onSelectWaypoint,
+  onWaypointDragBegin,
+  onWaypointDrag,
   onFlightUpdate,
   onFlightComplete,
 }: SceneProps) {
   const droneRef = useRef<THREE.Group>(null)
+  const [draggingWaypoint, setDraggingWaypoint] = useState(false)
   const palette = SCENE_PALETTES[mode]
+  const isNight = mode === 'night'
 
   return (
     <>
@@ -105,7 +113,11 @@ function SceneContent({
       <WaypointMarkers
         waypoints={waypoints}
         selectedId={selectedId}
-        onSelect={isFlying ? undefined : onSelectWaypoint}
+        interactive={!isFlying}
+        onSelect={onSelectWaypoint}
+        onDragActiveChange={setDraggingWaypoint}
+        onDragBegin={onWaypointDragBegin}
+        onDrag={onWaypointDrag}
       />
       <FlightPath
         waypoints={waypoints}
@@ -122,7 +134,24 @@ function SceneContent({
         onFlightComplete={onFlightComplete}
       />
 
-      <CameraRig mode={cameraMode} isFlying={isFlying} droneRef={droneRef} />
+      <CameraRig
+        mode={cameraMode}
+        isFlying={isFlying}
+        droneRef={droneRef}
+        locked={draggingWaypoint}
+      />
+
+      {/* ポストプロセス: 発光を強調するブルーム + 周辺減光 */}
+      <EffectComposer enableNormalPass={false}>
+        <Bloom
+          intensity={isNight ? 1.15 : 0.3}
+          luminanceThreshold={isNight ? 0.6 : 0.85}
+          luminanceSmoothing={0.9}
+          mipmapBlur
+          radius={0.7}
+        />
+        <Vignette eskil={false} offset={0.25} darkness={isNight ? 0.6 : 0.35} />
+      </EffectComposer>
     </>
   )
 }

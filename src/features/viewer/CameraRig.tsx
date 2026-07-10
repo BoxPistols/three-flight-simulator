@@ -23,10 +23,13 @@ export default function CameraRig({
   mode,
   isFlying,
   droneRef,
+  locked = false,
 }: {
   mode: CameraMode
   isFlying: boolean
   droneRef: RefObject<THREE.Group | null>
+  /** ウェイポイントのドラッグ中などにカメラ操作を一時停止する */
+  locked?: boolean
 }) {
   const controlsRef = useRef<React.ElementRef<typeof OrbitControls>>(null)
   const { camera } = useThree()
@@ -66,7 +69,7 @@ export default function CameraRig({
   return (
     <OrbitControls
       ref={controlsRef}
-      enabled={!fpvActive}
+      enabled={!fpvActive && !locked}
       enablePan
       enableZoom
       enableRotate
