@@ -4,8 +4,9 @@ import EmotionProvider from '@/providers/EmotionProvider'
 import ThemeProvider from '@/providers/ThemeProvider'
 
 export const metadata: Metadata = {
-  title: 'Drone Flight Simulator',
-  description: 'Next.js TS MUI7+Tailwind based drone flight simulator',
+  title: 'ドローン フライトプランナー',
+  description:
+    'ドローンの自動飛行ルートを3D空間で計画し、飛行前にプレビュー・検証できるWebツール',
 }
 
 export default function RootLayout({

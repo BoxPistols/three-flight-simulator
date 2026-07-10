@@ -1,173 +1,92 @@
-# 3D フライトシミュレーター
+# ドローン フライトプランナー
 
-Three.js と React を使用した、インタラクティブな3Dドローンフライトシミュレーターです。ウェイポイントベースの自動飛行をリアルタイムで3D可視化できます。
+**ドローンの自動飛行ルートを3D空間で計画し、飛行前にプレビュー・検証できるWebツール**です。
 
-## ✨ 特徴
+ウェイポイントを配置して経路を作り、距離・所要時間・高度・障害物との交差を確認したうえで、設定した速度どおりのプレビュー飛行を3Dで再生できます。
 
-- 🎮 **インタラクティブな3Dシーン** - Three.jsによる滑らかな3Dレンダリング
-- 🚁 **ドローン飛行シミュレーション** - ウェイポイント間の自動飛行
-- 👁️ **FPVカメラ** - ドローン目線のリアルタイム追従カメラ
-- 🎨 **洗練されたUI** - Material-UIによるモダンなデザイン
-- 🌓 **ダークモード対応** - ライト/ダークテーマの切り替え
-- 📍 **ウェイポイント管理** - クリックまたは手動入力で追加・編集
-- 🏙️ **都市環境** - 建物やランドマークを含む3D都市
-- ⚡ **高速レンダリング** - 最適化された描画パイプライン
+> プロダクトの方向性・設計判断の背景は [docs/ARCHITECTURE_UX_REVIEW.md](./docs/ARCHITECTURE_UX_REVIEW.md) を参照してください。
+
+## ✨ 機能
+
+- 📍 **ウェイポイント編集** — 地面クリック / 座標入力で追加、経路クリックで途中挿入、並べ替え・編集・削除
+- 🔢 **番号ラベル** — 3D空間のマーカーと一覧テーブルが番号で対応、クリックで相互に選択
+- 📊 **プランサマリー** — 総距離・予想飛行時間・高度範囲を飛行前に確認
+- ⚠️ **障害物警告** — 建物と交差するセグメントを自動検出し赤色表示
+- 🚁 **実単位プレビュー飛行** — 設定速度 [km/h] どおりの所要時間でシミュレーション再生
+- 🎥 **カメラモード** — 追従 / FPV / 自由視点を切り替え
+- 💾 **自動保存 & JSON入出力** — プランはブラウザに自動保存、ファイルとしてエクスポート/インポート可能
+- ⌨️ **キーボードショートカット** — Space: 飛行開始/停止、Delete: 選択ウェイポイント削除
+- 🌓 **ダークモード対応**
 
 ## 🚀 クイックスタート
 
-### 前提条件
-
-- Node.js 18.x以上
-- npm / yarn / pnpm / bunのいずれか
-
-### インストール
-
 ```bash
-# リポジトリをクローン
 git clone https://github.com/BoxPistols/three-flight-simulator.git
 cd three-flight-simulator
-
-# 依存関係をインストール
 npm install
-# or
-yarn install
-# or
-pnpm install
-```
-
-### 開発サーバーの起動
-
-```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
 ```
 
 ブラウザで [http://localhost:3000](http://localhost:3000) を開きます。
 
-### ビルド
+### スクリプト
 
-```bash
-npm run build
-npm start
-```
+| コマンド | 内容 |
+|---|---|
+| `npm run dev` | 開発サーバー起動（Turbopack） |
+| `npm run build` | プロダクションビルド |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | TypeScript 型チェック |
+| `npm test` | ユニットテスト（Vitest） |
 
 ## 📖 使い方
 
-### ウェイポイントの追加
+1. **ルート作成** — 3D画面の地面をクリックするとウェイポイントが追加されます（追加時の高度はサイドパネルで設定可能）。細かい調整は一覧テーブルの編集から。
+2. **検証** — サイドパネルのプランサマリーで距離・所要時間を確認。経路が赤く表示された区間は建物と交差しています。
+3. **プレビュー** — 「フライト開始」で設定速度どおりの飛行を再生。ヘッダーのトグルでカメラ視点（追従 / FPV / 自由）を切り替えられます。
+4. **保存・共有** — プランは自動保存されます。「エクスポート」でJSONファイルとして保存、「インポート」で読み込みできます。
 
-**方法1: 3D画面をクリック**
-1. 地面をクリックするとその位置にウェイポイントが追加されます
-2. 高度は自動的に50mに設定されます
+### 座標系
 
-**方法2: 手動入力**
-1. サイドパネルの入力フォームで緯度・経度・高度・速度を指定
-2. 「追加」ボタンをクリック
-
-**方法3: サンプル**
-- 「サンプル」ボタンで事前定義された円形経路を読み込み
-
-### フライトの実行
-
-1. 2つ以上のウェイポイントを追加
-2. 「フライト開始」ボタンをクリック
-3. ドローンがウェイポイント間を自動飛行
-4. カメラがドローン目線で追従
-5. 「停止」ボタンで中断可能
-
-### ウェイポイントの編集・削除
-
-- **編集**: テーブルの編集アイコン（鉛筆）をクリック
-- **削除**: テーブルの削除アイコン（ゴミ箱）をクリック
-
-### カメラ操作（停止中のみ）
-
-- **回転**: 左ドラッグ
-- **パン**: 右ドラッグ
-- **ズーム**: マウスホイール
+シーン座標（メートル単位）を使用します: **X = 東西 [m]、Z = 南北 [m]、高度 = 地面からの高さ [m]**。1シーン単位 = 1m。
 
 ## 🛠️ 技術スタック
 
-### フロントエンド
-- **Next.js 15.1.4** - Reactフレームワーク（App Router）
-- **React 19** - UIライブラリ
-- **TypeScript** - 型安全性
-
-### 3Dグラフィックス
-- **Three.js (r171)** - WebGL 3Dライブラリ
-- **@react-three/fiber** - ThreeのReactレンダラー
-- **@react-three/drei** - Three.jsヘルパーコンポーネント
-
-### UIフレームワーク
-- **Material-UI v6** - UIコンポーネントライブラリ
-- **Emotion** - CSS-in-JSスタイリング
-- **Tailwind CSS** - ユーティリティCSS
+- **Next.js 15** (App Router) / **React 19** / **TypeScript**
+- **Three.js + @react-three/fiber + drei** — 3Dレンダリング
+- **Material-UI v7 + Emotion** — UI
+- **Zustand** — 状態管理（localStorage 永続化）
+- **Vitest** — ユニットテスト
 
 ## 📁 プロジェクト構造
 
 ```
 src/
-├── app/                      # Next.js App Router
-│   ├── layout.tsx           # ルートレイアウト
-│   ├── page.tsx             # メインページ
-│   └── globals.css          # グローバルスタイル
-├── components/              # Reactコンポーネント
-│   ├── Scene.tsx            # 3Dシーンコンポーネント
-│   ├── WaypointEditor.tsx   # ウェイポイント編集UI
-│   └── ThemeToggle.tsx      # テーマ切替ボタン
-├── providers/               # Contextプロバイダー
-│   ├── ThemeProvider.tsx    # テーマ管理
-│   └── EmotionProvider.tsx  # Emotionキャッシュ
-└── lib/                     # ユーティリティ
-    └── coordinateConverter.ts # 座標変換
+├── app/                        # Next.js App Router（ページ骨格）
+├── components/                 # 汎用コンポーネント（ThemeToggle）
+├── providers/                  # テーマ/Emotionプロバイダー
+└── features/
+    ├── flight-plan/            # プランのドメイン
+    │   ├── model.ts            # Waypoint型・プラン操作の純関数・入出力
+    │   ├── store.ts            # Zustandストア（永続化）
+    │   └── components/         # WaypointEditor / PlanSummary / PlanIO
+    ├── simulation/             # シミュレーション（UI非依存の純関数）
+    │   ├── engine.ts           # 実単位の飛行状態計算
+    │   ├── collision.ts        # 経路×障害物の交差判定
+    │   └── components/         # FlightInfoPanel
+    └── viewer/                 # 3Dビューア（React Three Fiber）
+        ├── Scene.tsx           # エントリポイント
+        ├── AnimatedDrone.tsx   # エンジン駆動のドローン
+        ├── CameraRig.tsx       # 追従/FPV/自由カメラ
+        └── ...                 # マーカー・経路・建物・地面
 ```
 
-## 🎨 デザインシステム
-
-### カラーパレット
-
-#### ライトモード
-- 背景: `#f8fafc`
-- 前景: `#0f172a`
-- プライマリ: `#3b82f6`
-
-#### ダークモード
-- 背景: `#0f172a`
-- 前景: `#f1f5f9`
-- プライマリ: `#60a5fa`
-
-### アニメーション
-- トランジション: `0.2s cubic-bezier(0.4, 0, 0.2, 1)`
-- ホバーエフェクト: `translateY(-1px)` + シャドウ
-- グラデーションボタン
-
-## 📚 ドキュメント
-
-詳細な技術仕様は [TECHNICAL_DETAILS.md](./docs/TECHNICAL_DETAILS.md) を参照してください。
+設計原則: **飛行計算はUIに依存しない純関数**（`simulation/engine.ts`）に分離されており、ビューアは毎フレームその結果を描画するだけです。座標・速度・時間はすべて実単位で扱います。
 
 ## 🤝 コントリビューション
 
-プルリクエストを歓迎します！大きな変更の場合は、まずissueを開いて変更内容を議論してください。
+プルリクエストを歓迎します。CI（lint / typecheck / test / build）が通ることを確認してください。
 
 ## 📄 ライセンス
 
-このプロジェクトはMITライセンスの下で公開されています。
-
-## 🙏 謝辞
-
-- [Three.js](https://threejs.org/) - 3Dグラフィックスライブラリ
-- [React Three Fiber](https://docs.pmnd.rs/react-three-fiber) - ThreeのReactレンダラー
-- [Material-UI](https://mui.com/) - UIコンポーネントライブラリ
-- [Next.js](https://nextjs.org/) - Reactフレームワーク
-
-## 🔗 リンク
-
-- [ライブデモ](#) - デプロイ後に追加
-- [GitHub Issues](https://github.com/BoxPistols/three-flight-simulator/issues)
-- [プロジェクトボード](https://github.com/BoxPistols/three-flight-simulator/projects)
-
----
-
-Made with ❤️ by [BoxPistols](https://github.com/BoxPistols)
+MIT

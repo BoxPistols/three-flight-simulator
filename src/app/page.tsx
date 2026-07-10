@@ -1,209 +1,208 @@
-'use client';
+'use client'
 
-import dynamic from 'next/dynamic';
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Button, Typography, Paper, Box, Divider, Fade, Chip, LinearProgress, Drawer, IconButton, useMediaQuery, useTheme, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import StopIcon from '@mui/icons-material/Stop';
-import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
-import MenuIcon from '@mui/icons-material/Menu';
-import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
-import TouchAppIcon from '@mui/icons-material/TouchApp';
-import BugReportIcon from '@mui/icons-material/BugReport';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import DragHandleIcon from '@mui/icons-material/DragHandle';
-import { Waypoint, FlightDebugData } from '@/components/Scene';
-import WaypointEditor from '@/components/WaypointEditor';
-import ThemeToggle from '@/components/ThemeToggle';
-import DebugPanel from '@/components/DebugPanel';
+import dynamic from 'next/dynamic'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  Box,
+  Button,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  IconButton,
+  Paper,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
+  Typography,
+  useMediaQuery,
+  useTheme,
+  Drawer,
+} from '@mui/material'
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
+import DragHandleIcon from '@mui/icons-material/DragHandle'
+import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff'
+import MenuIcon from '@mui/icons-material/Menu'
+import PlayArrowIcon from '@mui/icons-material/PlayArrow'
+import RocketLaunchIcon from '@mui/icons-material/RocketLaunch'
+import StopIcon from '@mui/icons-material/Stop'
+import TouchAppIcon from '@mui/icons-material/TouchApp'
+import PlanIO from '@/features/flight-plan/components/PlanIO'
+import PlanSummary from '@/features/flight-plan/components/PlanSummary'
+import WaypointEditor from '@/features/flight-plan/components/WaypointEditor'
+import { useFlightPlanStore } from '@/features/flight-plan/store'
+import FlightInfoPanel from '@/features/simulation/components/FlightInfoPanel'
+import { findCollidingSegments } from '@/features/simulation/collision'
+import { planTotals, type FlightState } from '@/features/simulation/engine'
+import {
+  CAMERA_MODE_LABELS,
+  type CameraMode,
+} from '@/features/viewer/CameraRig'
+import { BUILDING_AABBS } from '@/features/viewer/city'
+import ThemeToggle from '@/components/ThemeToggle'
 
-const Scene = dynamic(() => import('@/components/Scene'), {
+const Scene = dynamic(() => import('@/features/viewer/Scene'), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+    <Box
+      sx={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: 'action.hover',
+      }}
+    >
       <Typography>3Dシーンをロード中...</Typography>
-    </div>
-  )
-});
+    </Box>
+  ),
+})
 
-// localStorage キー
-const STORAGE_KEY_VISITED = 'flightSimulator_hasVisited';
+const STORAGE_KEY_VISITED = 'flightSimulator_hasVisited'
 
-// サンプルウェイポイントを生成する関数（建物外周を周回する経路）
-const generateSampleWaypoints = (): Waypoint[] => {
-  // 建物は ±25（軸上）と±15（対角線上）に配置されているため、
-  // 半径32で円形に周回する経路を作成
-  const radius = 32;
-  const baseAltitude = 50; // 3D空間では altitude * 0.5 = 25
-  const numPoints = 16; // 円周上の点数
-
-  const samples = [];
-  for (let i = 0; i < numPoints; i++) {
-    const angle = (i / numPoints) * 2 * Math.PI;
-    // 座標系: latitude = Z軸, longitude = X軸
-    const latitude = radius * Math.cos(angle);
-    const longitude = radius * Math.sin(angle);
-    // 高度に少し変化をつける（25-30の範囲）
-    const altitudeVariation = 5 * Math.sin(angle * 2);
-    const altitude = baseAltitude + altitudeVariation;
-
-    samples.push({
-      latitude,
-      longitude,
-      altitude,
-      speed: 15 + Math.floor(i % 3) * 2, // 15-19 km/h の範囲で変化
-      rotation: 0,
-    });
-  }
-
-  return samples.map((wp) => ({
-    id: crypto.randomUUID(),
-    ...wp,
-  }));
-};
-
-// サイドバーの幅の制限
-const MIN_DRAWER_WIDTH = 280;
-const MAX_DRAWER_WIDTH = 500;
-const DEFAULT_DRAWER_WIDTH = 320;
+const MIN_DRAWER_WIDTH = 280
+const MAX_DRAWER_WIDTH = 520
+const DEFAULT_DRAWER_WIDTH = 340
 
 export default function Home() {
-  const [waypoints, setWaypoints] = useState<Waypoint[]>(() => generateSampleWaypoints());
-  const [isFlying, setIsFlying] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [highlightedWaypointId, setHighlightedWaypointId] = useState<string | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [debugData, setDebugData] = useState<FlightDebugData | null>(null);
-  const [showDebugPanel, setShowDebugPanel] = useState(true);
-  const [drawerWidth, setDrawerWidth] = useState(DEFAULT_DRAWER_WIDTH);
-  const [isResizing, setIsResizing] = useState(false);
-  const resizeRef = useRef<HTMLDivElement>(null);
+  const waypoints = useFlightPlanStore((s) => s.waypoints)
+  const selectedId = useFlightPlanStore((s) => s.selectedId)
+  const clickAltitude = useFlightPlanStore((s) => s.clickAltitude)
+  const addWaypoint = useFlightPlanStore((s) => s.addWaypoint)
+  const insertAfterSegment = useFlightPlanStore((s) => s.insertAfterSegment)
+  const selectWaypoint = useFlightPlanStore((s) => s.selectWaypoint)
+  const removeWaypoint = useFlightPlanStore((s) => s.removeWaypoint)
+  const loadSample = useFlightPlanStore((s) => s.loadSample)
 
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [mounted, setMounted] = useState(false)
+  const [isFlying, setIsFlying] = useState(false)
+  const [flightState, setFlightState] = useState<FlightState | null>(null)
+  const [cameraMode, setCameraMode] = useState<CameraMode>('follow')
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerWidth, setDrawerWidth] = useState(DEFAULT_DRAWER_WIDTH)
+  const [isResizing, setIsResizing] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
-  // ドラッグでサイドバーの幅を変更
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  }, []);
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isResizing) return;
-    const newWidth = e.clientX;
-    if (newWidth >= MIN_DRAWER_WIDTH && newWidth <= MAX_DRAWER_WIDTH) {
-      setDrawerWidth(newWidth);
+  const collidingSegments = useMemo(
+    () => findCollidingSegments(waypoints, BUILDING_AABBS),
+    [waypoints]
+  )
+  const totals = useMemo(() => planTotals(waypoints), [waypoints])
+
+  // ---- 初期化 ----
+  useEffect(() => {
+    setMounted(true)
+    if (!localStorage.getItem(STORAGE_KEY_VISITED)) {
+      setShowOnboarding(true)
     }
-  }, [isResizing]);
-
-  const handleMouseUp = useCallback(() => {
-    setIsResizing(false);
-  }, []);
+  }, [])
 
   useEffect(() => {
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-    } else {
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
+    if (mounted) setDrawerOpen(!isMobile)
+  }, [mounted, isMobile])
+
+  // ---- サイドバーのリサイズ ----
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsResizing(true)
+  }, [])
+
+  useEffect(() => {
+    if (!isResizing) return
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = e.clientX
+      if (newWidth >= MIN_DRAWER_WIDTH && newWidth <= MAX_DRAWER_WIDTH) {
+        setDrawerWidth(newWidth)
+      }
     }
+    const handleMouseUp = () => setIsResizing(false)
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-  }, [isResizing, handleMouseMove, handleMouseUp]);
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isResizing])
 
+  // ---- フライト制御 ----
+  const canFly = waypoints.length >= 2
+
+  const handleStartFlight = useCallback(() => {
+    if (!canFly) return
+    selectWaypoint(null)
+    setFlightState(null)
+    setIsFlying(true)
+  }, [canFly, selectWaypoint])
+
+  const handleStopFlight = useCallback(() => {
+    setIsFlying(false)
+    setFlightState(null)
+  }, [])
+
+  const handleFlightComplete = useCallback(() => {
+    setIsFlying(false)
+    setFlightState(null)
+  }, [])
+
+  // ---- キーボードショートカット ----
   useEffect(() => {
-    setMounted(true);
-    // 初回訪問時にオンボーディングを表示
-    const hasVisited = localStorage.getItem(STORAGE_KEY_VISITED);
-    if (!hasVisited) {
-      setShowOnboarding(true);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return
+      }
+      if (e.code === 'Space') {
+        e.preventDefault()
+        if (isFlying) handleStopFlight()
+        else handleStartFlight()
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !isFlying && selectedId) {
+        removeWaypoint(selectedId)
+      }
     }
-  }, []);
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isFlying, selectedId, handleStartFlight, handleStopFlight, removeWaypoint])
 
-  // モバイルの場合は初期状態で閉じる
-  useEffect(() => {
-    if (mounted) {
-      setDrawerOpen(!isMobile);
-    }
-  }, [mounted, isMobile]);
+  // ---- 3Dシーンからのイベント ----
+  const handleGroundClick = useCallback(
+    (x: number, z: number) => {
+      addWaypoint({ x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10, altitude: clickAltitude })
+    },
+    [addWaypoint, clickAltitude]
+  )
 
-  const handleStartFlight = () => {
-    if (waypoints.length > 1) {
-      setIsFlying(true);
-    }
-  };
+  const handleSegmentClick = useCallback(
+    (segmentIndex: number, point: [number, number, number]) => {
+      insertAfterSegment(segmentIndex, {
+        x: Math.round(point[0] * 10) / 10,
+        z: Math.round(point[2] * 10) / 10,
+        altitude: Math.round(point[1]),
+      })
+    },
+    [insertAfterSegment]
+  )
 
-    const handleStopFlight = () => {
-    setIsFlying(false);
-  };
-
-  const handleFlightComplete = () => {
-    setIsFlying(false);
-  };
-
-  const handleAddWaypointFromClick = (position: [number, number, number]) => {
-    // 3D座標をそのままウェイポイントとして使用
-    // position: [x, y, z] → [longitude, altitude, latitude]
-    const newWaypoint: Waypoint = {
-      id: crypto.randomUUID(),
-      latitude: position[2],      // Z → latitude
-      longitude: position[0],     // X → longitude
-      altitude: position[1] * 2,  // Y → altitude（スケール戻し）
-      speed: 15,
-      rotation: 0
-    };
-
-    setWaypoints([...waypoints, newWaypoint]);
-
-    // 新しく追加されたウェイポイントをハイライト
-    setHighlightedWaypointId(newWaypoint.id);
-
-    // 3秒後にハイライトを解除
-    setTimeout(() => {
-      setHighlightedWaypointId(null);
-    }, 3000);
-  };
-
-  const handleOnboardingClose = (loadSample: boolean) => {
-    setShowOnboarding(false);
-    localStorage.setItem(STORAGE_KEY_VISITED, 'true');
-    if (loadSample) {
-      setWaypoints(generateSampleWaypoints());
-    }
-  };
-
-  const handleInsertWaypoint = (segmentIndex: number, position: [number, number, number]) => {
-    // 3D座標をそのままウェイポイントとして使用
-    const newWaypoint: Waypoint = {
-      id: crypto.randomUUID(),
-      latitude: position[2],      // Z → latitude
-      longitude: position[0],     // X → longitude
-      altitude: position[1] * 2,  // Y → altitude（スケール戻し）
-      speed: 15,
-      rotation: 0
-    };
-
-    // segmentIndexの後に挿入（segmentIndex + 1の位置）
-    const newWaypoints = [...waypoints];
-    newWaypoints.splice(segmentIndex + 1, 0, newWaypoint);
-    setWaypoints(newWaypoints);
-
-    // 新しく追加されたウェイポイントをハイライト
-    setHighlightedWaypointId(newWaypoint.id);
-
-    // 3秒後にハイライトを解除
-    setTimeout(() => {
-      setHighlightedWaypointId(null);
-    }, 3000);
-  };
+  const handleOnboardingClose = (loadSamplePlan: boolean) => {
+    setShowOnboarding(false)
+    localStorage.setItem(STORAGE_KEY_VISITED, 'true')
+    if (loadSamplePlan) loadSample()
+  }
 
   if (!mounted) {
     return (
@@ -213,12 +212,12 @@ export default function Home() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          bgcolor: 'background.default'
+          bgcolor: 'background.default',
         }}
       >
         <Typography>アプリケーションを読み込み中...</Typography>
       </Box>
-    );
+    )
   }
 
   const drawerContent = (
@@ -229,149 +228,136 @@ export default function Home() {
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          gap: 2,
-          p: 2.5,
+          gap: 1.5,
+          p: 2,
           overflow: 'auto',
-          background: (theme) =>
-            theme.palette.mode === 'dark'
-              ? 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)'
-              : 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
         }}
       >
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <FlightTakeoffIcon sx={{ fontSize: 28, color: 'primary.main' }} />
-          <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-            フライトコントロール
-          </Typography>
-        </Box>
-        <Tooltip title="パネルを閉じる" arrow>
-          <IconButton onClick={() => setDrawerOpen(false)} size="small">
-            <ChevronLeftIcon />
-          </IconButton>
-        </Tooltip>
-      </Box>
-
-      <Divider sx={{ my: 0.5 }} />
-
-      <WaypointEditor
-        waypoints={waypoints}
-        setWaypoints={setWaypoints}
-        highlightedWaypointId={highlightedWaypointId}
-      />
-
-      <Box sx={{ mt: 'auto', pt: 2 }}>
-        <Fade in={true} timeout={500}>
-          <Box>
-            {isFlying && (
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="caption" sx={{ display: 'block', mb: 0.5, color: 'text.secondary' }}>
-                  飛行中...
-                </Typography>
-                <LinearProgress
-                  sx={{
-                    height: 6,
-                    borderRadius: 3,
-                    bgcolor: 'action.hover',
-                    '& .MuiLinearProgress-bar': {
-                      borderRadius: 3,
-                      background: 'linear-gradient(90deg, #10b981 0%, #3b82f6 50%, #ef4444 100%)',
-                    }
-                  }}
-                />
-              </Box>
-            )}
-
-            {isFlying ? (
-              <Tooltip title="ドローンの飛行を停止してカメラを自由視点に戻す" arrow>
-                <Button
-                  variant="contained"
-                  color="error"
-                  onClick={handleStopFlight}
-                  fullWidth
-                  size="large"
-                  startIcon={<StopIcon />}
-                  sx={{
-                    py: 1.5,
-                    boxShadow: '0 4px 14px rgba(239, 68, 68, 0.3)',
-                  }}
-                >
-                  停止
-                </Button>
-              </Tooltip>
-            ) : (
-              <Tooltip
-                title={waypoints.length < 2
-                  ? "フライトを開始するには2つ以上のウェイポイントが必要です"
-                  : "ウェイポイントに沿ってドローン目線で飛行を開始"
-                }
-                arrow
-              >
-                <span style={{ width: '100%' }}>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={handleStartFlight}
-                    disabled={waypoints.length < 2}
-                    fullWidth
-                    size="large"
-                    startIcon={<PlayArrowIcon />}
-                    sx={{
-                      py: 1.5,
-                      boxShadow: waypoints.length >= 2 ? '0 4px 14px rgba(59, 130, 246, 0.3)' : 'none',
-                    }}
-                  >
-                    フライト開始
-                    {waypoints.length >= 2 && (
-                      <Chip
-                        label={waypoints.length}
-                        size="small"
-                        sx={{
-                          ml: 1,
-                          height: 20,
-                          fontSize: '0.75rem',
-                          bgcolor: 'rgba(255, 255, 255, 0.2)',
-                          color: 'inherit',
-                          fontWeight: 700,
-                        }}
-                      />
-                    )}
-                  </Button>
-                </span>
-              </Tooltip>
-            )}
-          </Box>
-        </Fade>
-
-        <Paper
-          variant="outlined"
+        <Box
           sx={{
-            mt: 2,
-            p: 2,
-            bgcolor: 'action.hover',
-            borderRadius: 2,
-            borderColor: 'divider',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
           }}
         >
-          <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 1, color: 'text.primary' }}>
-            💡 操作ガイド
-          </Typography>
-          <Box component="ul" sx={{ pl: 2.5, m: 0, '& li': { fontSize: '0.75rem', mb: 0.75, color: 'text.secondary', lineHeight: 1.5 } }}>
-            <li>3D画面をクリックでウェイポイント追加</li>
-            <li>フライトプラン（経路）をクリックで途中に挿入</li>
-            <li>手動入力でも追加可能</li>
-            <li>開始ボタンでドローン目線飛行</li>
-            <li>停止中はマウスで自由視点操作</li>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <FlightTakeoffIcon sx={{ fontSize: 26, color: 'primary.main' }} />
+            <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+              フライトプラン
+            </Typography>
           </Box>
-        </Paper>
+          <Tooltip title="パネルを閉じる" arrow>
+            <IconButton
+              onClick={() => setDrawerOpen(false)}
+              size="small"
+              aria-label="パネルを閉じる"
+            >
+              <ChevronLeftIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
+
+        <Divider />
+
+        <WaypointEditor disabled={isFlying} />
+
+        <PlanSummary waypoints={waypoints} collidingSegments={collidingSegments} />
+
+        <PlanIO disabled={isFlying} />
+
+        <Box sx={{ mt: 'auto', pt: 1 }}>
+          {isFlying ? (
+            <Tooltip title="飛行を停止してプラン編集に戻る（Space）" arrow>
+              <Button
+                variant="contained"
+                color="error"
+                onClick={handleStopFlight}
+                fullWidth
+                size="large"
+                startIcon={<StopIcon />}
+                sx={{ py: 1.5 }}
+              >
+                停止
+              </Button>
+            </Tooltip>
+          ) : (
+            <Tooltip
+              title={
+                canFly
+                  ? '設定した速度どおりにプランをプレビュー飛行（Space）'
+                  : 'フライトには2つ以上のウェイポイントが必要です'
+              }
+              arrow
+            >
+              <span style={{ width: '100%', display: 'block' }}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={handleStartFlight}
+                  disabled={!canFly}
+                  fullWidth
+                  size="large"
+                  startIcon={<PlayArrowIcon />}
+                  sx={{ py: 1.5 }}
+                >
+                  フライト開始
+                  {canFly && (
+                    <Chip
+                      label={waypoints.length}
+                      size="small"
+                      sx={{
+                        ml: 1,
+                        height: 20,
+                        fontSize: '0.75rem',
+                        bgcolor: 'rgba(255, 255, 255, 0.2)',
+                        color: 'inherit',
+                        fontWeight: 700,
+                      }}
+                    />
+                  )}
+                </Button>
+              </span>
+            </Tooltip>
+          )}
+
+          <Paper
+            variant="outlined"
+            sx={{ mt: 1.5, p: 1.5, bgcolor: 'action.hover', borderRadius: 2 }}
+          >
+            <Typography
+              variant="caption"
+              sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}
+            >
+              💡 操作ガイド
+            </Typography>
+            <Box
+              component="ul"
+              sx={{
+                pl: 2.5,
+                m: 0,
+                '& li': {
+                  fontSize: '0.72rem',
+                  mb: 0.5,
+                  color: 'text.secondary',
+                  lineHeight: 1.5,
+                },
+              }}
+            >
+              <li>地面クリック: ウェイポイント追加</li>
+              <li>経路クリック: 途中に挿入</li>
+              <li>マーカークリック: 選択（編集・削除は一覧から）</li>
+              <li>Space: フライト開始/停止・Delete: 選択を削除</li>
+              <li>ドラッグ: 視点回転・ホイール: ズーム</li>
+            </Box>
+          </Paper>
+        </Box>
       </Box>
-      </Box>
+
       {/* リサイズハンドル（デスクトップのみ） */}
       {!isMobile && (
         <Tooltip title="ドラッグで幅を調整" placement="right" arrow>
           <Box
-            ref={resizeRef}
-            onMouseDown={handleMouseDown}
+            onMouseDown={handleResizeStart}
             sx={{
               width: 8,
               height: '100%',
@@ -381,16 +367,14 @@ export default function Home() {
               justifyContent: 'center',
               bgcolor: isResizing ? 'primary.main' : 'transparent',
               transition: 'background-color 0.2s',
-              '&:hover': {
-                bgcolor: 'action.hover',
-              },
+              '&:hover': { bgcolor: 'action.hover' },
             }}
           >
             <DragHandleIcon
               sx={{
                 transform: 'rotate(90deg)',
                 fontSize: 16,
-                color: isResizing ? 'primary.contrastText' : 'text.secondary',
+                color: 'text.secondary',
                 opacity: 0.7,
               }}
             />
@@ -398,19 +382,23 @@ export default function Home() {
         </Tooltip>
       )}
     </Box>
-  );
+  )
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex', bgcolor: 'background.default', overflow: 'hidden' }}>
-      {/* サイドパネル（Drawer - デスクトップ/モバイル共通でトグル可能） */}
+    <Box
+      sx={{
+        height: '100vh',
+        display: 'flex',
+        bgcolor: 'background.default',
+        overflow: 'hidden',
+      }}
+    >
       <Drawer
         anchor="left"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        variant={isMobile ? "temporary" : "persistent"}
-        ModalProps={{
-          keepMounted: true,
-        }}
+        variant={isMobile ? 'temporary' : 'persistent'}
+        ModalProps={{ keepMounted: true }}
         sx={{
           width: drawerOpen ? drawerWidth : 0,
           flexShrink: 0,
@@ -425,8 +413,8 @@ export default function Home() {
         {drawerContent}
       </Drawer>
 
-      {/* メインフライト画面 */}
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {/* ヘッダー */}
         <Paper
           elevation={1}
           sx={{
@@ -434,24 +422,19 @@ export default function Home() {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            px: { xs: 2, md: 3 },
+            px: { xs: 1.5, md: 2.5 },
             borderRadius: 0,
             borderBottom: 1,
             borderColor: 'divider',
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Tooltip title={drawerOpen ? "パネルを閉じる" : "フライトコントロールパネルを開く"} arrow>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Tooltip title={drawerOpen ? 'パネルを閉じる' : 'フライトプランパネルを開く'} arrow>
               <IconButton
                 onClick={() => setDrawerOpen(!drawerOpen)}
                 edge="start"
-                sx={{
-                  color: 'primary.main',
-                  '&:hover': {
-                    bgcolor: 'primary.main',
-                    color: 'primary.contrastText',
-                  },
-                }}
+                aria-label="フライトプランパネルの開閉"
+                sx={{ color: 'primary.main' }}
               >
                 <MenuIcon />
               </IconButton>
@@ -464,19 +447,18 @@ export default function Home() {
                 fontSize: { xs: '0.9rem', md: '1rem' },
               }}
             >
-              3D フライトシミュレーター
+              ドローン フライトプランナー
             </Typography>
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, md: 2 } }}>
-            <Tooltip title={isFlying ? "ドローンが飛行中です" : "飛行待機状態です"} arrow>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, md: 1.5 } }}>
+            <Tooltip title={isFlying ? 'プレビュー飛行中' : '編集モード'} arrow>
               <Chip
-                label={isFlying ? '実行中' : '待機中'}
+                label={isFlying ? '飛行中' : '編集中'}
                 color={isFlying ? 'success' : 'default'}
                 size="small"
-                icon={isFlying ? <span style={{ fontSize: '8px' }}>🟢</span> : <span style={{ fontSize: '8px' }}>⚪</span>}
                 sx={{
                   fontWeight: 600,
-                  fontSize: { xs: '0.7rem', md: '0.75rem' },
                   height: 28,
                   display: { xs: 'none', sm: 'flex' },
                   animation: isFlying ? 'pulse 2s ease-in-out infinite' : 'none',
@@ -487,108 +469,131 @@ export default function Home() {
                 }}
               />
             </Tooltip>
-            <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
-            <Tooltip title={`登録済みウェイポイント数: ${waypoints.length}個 (2個以上で飛行可能)`} arrow>
+            <Tooltip
+              title={`ウェイポイント数: ${waypoints.length}（2個以上で飛行可能）`}
+              arrow
+            >
               <Chip
                 label={`${waypoints.length} WP`}
                 size="small"
                 variant="outlined"
                 sx={{
                   fontWeight: 600,
-                  fontSize: { xs: '0.7rem', md: '0.75rem' },
                   height: 28,
-                  borderColor: waypoints.length >= 2 ? 'primary.main' : 'divider',
-                  color: waypoints.length >= 2 ? 'primary.main' : 'text.secondary',
+                  borderColor: canFly ? 'primary.main' : 'divider',
+                  color: canFly ? 'primary.main' : 'text.secondary',
                 }}
               />
             </Tooltip>
-            <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
-            <Tooltip title={showDebugPanel ? "デバッグパネルを非表示" : "デバッグパネルを表示"} arrow>
-              <IconButton
-                onClick={() => setShowDebugPanel(!showDebugPanel)}
+            <Divider
+              orientation="vertical"
+              flexItem
+              sx={{ display: { xs: 'none', sm: 'block' } }}
+            />
+            <Tooltip title="飛行中のカメラ視点" arrow>
+              <ToggleButtonGroup
+                value={cameraMode}
+                exclusive
                 size="small"
-                sx={{
-                  color: showDebugPanel ? 'primary.main' : 'text.secondary',
-                  '&:hover': {
-                    bgcolor: 'primary.main',
-                    color: 'primary.contrastText',
-                  },
+                onChange={(_, value: CameraMode | null) => {
+                  if (value) setCameraMode(value)
                 }}
+                aria-label="カメラ視点"
+                sx={{ height: 28, display: { xs: 'none', sm: 'flex' } }}
               >
-                <BugReportIcon fontSize="small" />
-              </IconButton>
+                {(Object.keys(CAMERA_MODE_LABELS) as CameraMode[]).map((mode) => (
+                  <ToggleButton
+                    key={mode}
+                    value={mode}
+                    sx={{ px: 1, fontSize: '0.7rem' }}
+                  >
+                    {CAMERA_MODE_LABELS[mode]}
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
             </Tooltip>
             <ThemeToggle />
           </Box>
         </Paper>
+
+        {/* 3Dビューア */}
         <Box sx={{ flex: 1, position: 'relative' }}>
           <Scene
             waypoints={waypoints}
             isFlying={isFlying}
-            onAddWaypoint={handleAddWaypointFromClick}
-            onInsertWaypoint={handleInsertWaypoint}
+            cameraMode={cameraMode}
+            selectedId={selectedId}
+            collidingSegments={collidingSegments}
+            onGroundClick={handleGroundClick}
+            onSegmentClick={handleSegmentClick}
+            onSelectWaypoint={(id) =>
+              selectWaypoint(id === selectedId ? null : id)
+            }
+            onFlightUpdate={setFlightState}
             onFlightComplete={handleFlightComplete}
-            onDebugDataUpdate={setDebugData}
-            highlightedWaypointId={highlightedWaypointId}
           />
-          {/* デバッグパネル */}
-          <DebugPanel
-            isFlying={isFlying}
-            debugData={debugData}
-            visible={showDebugPanel}
-          />
+          {isFlying && (
+            <FlightInfoPanel flightState={flightState} totals={totals} />
+          )}
         </Box>
       </Box>
 
-      {/* オンボーディングダイアログ */}
+      {/* オンボーディング */}
       <Dialog
         open={showOnboarding}
         onClose={() => handleOnboardingClose(false)}
         maxWidth="sm"
         fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            background: (theme) =>
-              theme.palette.mode === 'dark'
-                ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)'
-                : 'linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%)',
-          }
-        }}
       >
         <DialogTitle sx={{ textAlign: 'center', pt: 4 }}>
           <FlightTakeoffIcon sx={{ fontSize: 48, color: 'primary.main', mb: 1 }} />
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            3D フライトシミュレーターへようこそ
+          <Typography variant="h5" component="div" sx={{ fontWeight: 700 }}>
+            ドローン フライトプランナーへようこそ
           </Typography>
         </DialogTitle>
         <DialogContent>
-          <Box sx={{ textAlign: 'center', py: 2 }}>
+          <Box sx={{ textAlign: 'center', py: 1 }}>
             <Typography variant="body1" sx={{ mb: 3, color: 'text.secondary' }}>
-              ドローンの飛行経路をシミュレーションできます。
+              ドローンの自動飛行ルートを3D空間で計画し、
               <br />
-              まずはサンプルを読み込んで体験してみましょう。
+              飛行前にプレビュー・検証できるツールです。
             </Typography>
-
             <Paper
               variant="outlined"
-              sx={{
-                p: 2,
-                mb: 2,
-                bgcolor: 'action.hover',
-                borderRadius: 2,
-              }}
+              sx={{ p: 2, mb: 1, bgcolor: 'action.hover', borderRadius: 2 }}
             >
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontWeight: 600,
+                  mb: 1.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 1,
+                }}
+              >
                 <TouchAppIcon fontSize="small" />
-                基本操作
+                できること
               </Typography>
-              <Box component="ul" sx={{ pl: 2, m: 0, textAlign: 'left', '& li': { fontSize: '0.875rem', mb: 0.75, color: 'text.secondary' } }}>
-                <li><strong>3D画面をクリック</strong>: ウェイポイントを追加</li>
-                <li><strong>経路をクリック</strong>: 途中にウェイポイントを挿入</li>
-                <li><strong>マウスドラッグ</strong>: 視点を回転</li>
-                <li><strong>スクロール</strong>: ズームイン/アウト</li>
-                <li><strong>フライト開始</strong>: ドローン目線で飛行体験</li>
+              <Box
+                component="ul"
+                sx={{
+                  pl: 2,
+                  m: 0,
+                  textAlign: 'left',
+                  '& li': {
+                    fontSize: '0.875rem',
+                    mb: 0.75,
+                    color: 'text.secondary',
+                  },
+                }}
+              >
+                <li><strong>地面をクリック</strong>してウェイポイントを追加・経路を作成</li>
+                <li><strong>距離・所要時間・高度</strong>を飛行前に確認</li>
+                <li><strong>建物と交差する経路</strong>は自動で警告</li>
+                <li><strong>フライト開始</strong>で実速度どおりのプレビュー飛行</li>
+                <li>プランは自動保存され、<strong>JSONで入出力</strong>も可能</li>
               </Box>
             </Paper>
           </Box>
@@ -605,14 +610,11 @@ export default function Home() {
             variant="contained"
             onClick={() => handleOnboardingClose(true)}
             startIcon={<RocketLaunchIcon />}
-            sx={{
-              boxShadow: '0 4px 14px rgba(59, 130, 246, 0.3)',
-            }}
           >
             サンプルで開始
           </Button>
         </DialogActions>
       </Dialog>
     </Box>
-  );
+  )
 }
