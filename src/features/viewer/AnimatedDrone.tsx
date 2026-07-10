@@ -84,5 +84,5 @@ export default function AnimatedDrone({
     }
   })
 
-  return <Drone ref={droneRef} />
+  return <Drone ref={droneRef} spinning={isFlying} />
 }

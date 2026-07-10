@@ -49,14 +49,16 @@ export default function CameraRig({
       }
       controls.update()
     } else if (mode === 'fpv') {
+      // チェイスカメラ: ドローン後方やや上から進行方向を見下ろす
+      // （経路チューブが視界中央を塞がないよう高めに配置）
       const yaw = drone.rotation.y
       const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw))
       const idealPosition = drone.position
         .clone()
-        .addScaledVector(forward, -6)
-        .add(new THREE.Vector3(0, 2.5, 0))
-      camera.position.lerp(idealPosition, 0.15)
-      const lookTarget = drone.position.clone().addScaledVector(forward, 12)
+        .addScaledVector(forward, -9)
+        .add(new THREE.Vector3(0, 4, 0))
+      camera.position.lerp(idealPosition, 0.22)
+      const lookTarget = drone.position.clone().addScaledVector(forward, 7)
       camera.lookAt(lookTarget)
     }
   })

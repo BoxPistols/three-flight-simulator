@@ -2,9 +2,10 @@
 
 import { useRef, useState } from 'react'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
+import { Grid } from '@react-three/drei'
 import * as THREE from 'three'
 import { GROUND_SIZE_M } from './city'
-import { VIEWER_COLORS } from './colors'
+import { SCENE_PALETTES, VIEWER_COLORS, type SceneMode } from './colors'
 
 function ClickRipple({ position }: { position: [number, number, number] }) {
   const meshRef = useRef<THREE.Mesh>(null)
@@ -31,14 +32,17 @@ function ClickRipple({ position }: { position: [number, number, number] }) {
 }
 
 /**
- * クリック可能な地面。
+ * クリック可能な地面。CAD風の測量グリッド（5mセル / 25mセクション）を重ねる。
  * カメラ操作のドラッグと区別し、短いクリックのみをウェイポイント追加として扱う。
  */
 export default function Ground({
+  mode,
   onGroundClick,
 }: {
+  mode: SceneMode
   onGroundClick?: (x: number, z: number) => void
 }) {
+  const palette = SCENE_PALETTES[mode]
   const [ripples, setRipples] = useState<
     Array<{ id: number; position: [number, number, number] }>
   >([])
@@ -86,17 +90,34 @@ export default function Ground({
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, 0, 0]}
+        receiveShadow
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
       >
         <planeGeometry args={[GROUND_SIZE_M, GROUND_SIZE_M]} />
         <meshStandardMaterial
-          color={VIEWER_COLORS.environment.ground}
-          roughness={0.9}
-          metalness={0.1}
+          color={palette.ground}
+          roughness={0.95}
+          metalness={0.05}
         />
       </mesh>
+
+      {/* 測量グリッド */}
+      <Grid
+        position={[0, 0.02, 0]}
+        args={[GROUND_SIZE_M, GROUND_SIZE_M]}
+        cellSize={5}
+        cellThickness={0.6}
+        cellColor={palette.gridCell}
+        sectionSize={25}
+        sectionThickness={1.1}
+        sectionColor={palette.gridSection}
+        fadeDistance={220}
+        fadeStrength={1}
+        followCamera={false}
+      />
+
       {ripples.map((ripple) => (
         <ClickRipple key={ripple.id} position={ripple.position} />
       ))}

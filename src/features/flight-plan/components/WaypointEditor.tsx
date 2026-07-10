@@ -41,13 +41,28 @@ import {
 import { useFlightPlanStore } from '../store'
 
 const headerCellSx = {
-  fontSize: '0.72rem',
+  fontSize: '0.68rem',
   p: 0.75,
-  fontWeight: 600,
-  bgcolor: 'action.hover',
+  fontWeight: 700,
+  letterSpacing: '0.04em',
+  color: 'text.secondary',
+  bgcolor: 'background.paper',
+  whiteSpace: 'nowrap',
 } as const
 
-const bodyCellSx = { fontSize: '0.72rem', p: 0.5 } as const
+const bodyCellSx = {
+  fontSize: '0.72rem',
+  p: 0.5,
+  fontFamily: 'var(--font-mono), monospace',
+  fontVariantNumeric: 'tabular-nums',
+  whiteSpace: 'nowrap',
+} as const
+
+const actionButtonSx = { p: 0.4 } as const
+
+/** 行頭の役割インジケータ（開始=緑 / 終了=ローズ / 中間=アンバー） */
+const roleColor = (index: number, count: number): string =>
+  index === 0 ? '#10b981' : index === count - 1 ? '#f43f5e' : '#f59e0b'
 
 /**
  * ウェイポイント一覧・追加・編集。
@@ -94,11 +109,10 @@ export default function WaypointEditor({ disabled }: { disabled?: boolean }) {
   return (
     <Box>
       <Typography
-        variant="subtitle1"
-        gutterBottom
-        sx={{ fontWeight: 600, mb: 1.5 }}
+        variant="overline"
+        sx={{ color: 'text.secondary', display: 'block', mb: 0.75 }}
       >
-        ウェイポイント
+        ウェイポイント追加
       </Typography>
 
       {/* 追加フォーム */}
@@ -254,7 +268,26 @@ export default function WaypointEditor({ disabled }: { disabled?: boolean }) {
                   sx={{ cursor: 'pointer' }}
                 >
                   <TableCell sx={{ ...bodyCellSx, fontWeight: 700 }}>
-                    {index + 1}
+                    <Box
+                      component="span"
+                      sx={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 0.6,
+                      }}
+                    >
+                      <Box
+                        component="span"
+                        sx={{
+                          width: 7,
+                          height: 7,
+                          borderRadius: '50%',
+                          bgcolor: roleColor(index, waypoints.length),
+                          flexShrink: 0,
+                        }}
+                      />
+                      {index + 1}
+                    </Box>
                   </TableCell>
                   <TableCell sx={bodyCellSx}>{wp.x.toFixed(1)}</TableCell>
                   <TableCell sx={bodyCellSx}>{wp.z.toFixed(1)}</TableCell>
@@ -268,9 +301,10 @@ export default function WaypointEditor({ disabled }: { disabled?: boolean }) {
                         moveWaypoint(wp.id, 'up')
                       }}
                       size="small"
+                      sx={actionButtonSx}
                       disabled={disabled || index === 0}
                     >
-                      <KeyboardArrowUpIcon fontSize="small" />
+                      <KeyboardArrowUpIcon sx={{ fontSize: 16 }} />
                     </IconButton>
                     <IconButton
                       aria-label={`ウェイポイント${index + 1}を下へ`}
@@ -279,9 +313,10 @@ export default function WaypointEditor({ disabled }: { disabled?: boolean }) {
                         moveWaypoint(wp.id, 'down')
                       }}
                       size="small"
+                      sx={actionButtonSx}
                       disabled={disabled || index === waypoints.length - 1}
                     >
-                      <KeyboardArrowDownIcon fontSize="small" />
+                      <KeyboardArrowDownIcon sx={{ fontSize: 16 }} />
                     </IconButton>
                     <IconButton
                       aria-label={`ウェイポイント${index + 1}を編集`}
@@ -291,9 +326,10 @@ export default function WaypointEditor({ disabled }: { disabled?: boolean }) {
                       }}
                       color="primary"
                       size="small"
+                      sx={actionButtonSx}
                       disabled={disabled}
                     >
-                      <EditIcon fontSize="small" />
+                      <EditIcon sx={{ fontSize: 16 }} />
                     </IconButton>
                     <IconButton
                       aria-label={`ウェイポイント${index + 1}を削除`}
@@ -303,9 +339,10 @@ export default function WaypointEditor({ disabled }: { disabled?: boolean }) {
                       }}
                       color="error"
                       size="small"
+                      sx={actionButtonSx}
                       disabled={disabled}
                     >
-                      <DeleteIcon fontSize="small" />
+                      <DeleteIcon sx={{ fontSize: 16 }} />
                     </IconButton>
                   </TableCell>
                 </TableRow>
@@ -316,17 +353,18 @@ export default function WaypointEditor({ disabled }: { disabled?: boolean }) {
                 <TableCell
                   colSpan={6}
                   align="center"
-                  sx={{
-                    fontSize: '0.75rem',
-                    fontStyle: 'italic',
-                    p: 3,
-                    color: 'text.secondary',
-                  }}
+                  sx={{ p: 3.5, color: 'text.secondary', border: 0 }}
                 >
-                  ウェイポイントが登録されていません
-                  <br />
-                  <Typography variant="caption" sx={{ mt: 1, display: 'block' }}>
-                    3D画面の地面をクリックするか、上のフォームで追加してください
+                  <MapIcon
+                    sx={{ fontSize: 34, opacity: 0.35, display: 'block', mx: 'auto', mb: 1 }}
+                  />
+                  <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    まだウェイポイントがありません
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: 'block', lineHeight: 1.6 }}>
+                    3D画面の地面をクリックするか、
+                    <br />
+                    上のフォームから追加してください
                   </Typography>
                 </TableCell>
               </TableRow>
