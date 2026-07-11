@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, type RefObject } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
@@ -24,16 +24,36 @@ export default function CameraRig({
   isFlying,
   droneRef,
   locked = false,
+  maxDistance = 300,
+  worldKind = 'virtual',
 }: {
   mode: CameraMode
   isFlying: boolean
   droneRef: RefObject<THREE.Group | null>
   /** ウェイポイントのドラッグ中などにカメラ操作を一時停止する */
   locked?: boolean
+  /** ズームアウトの上限 [m]（実在都市モードでは広く取る） */
+  maxDistance?: number
+  /** 環境の種類。切替時に適した視点距離へカメラを移動する */
+  worldKind?: 'virtual' | 'real'
 }) {
   const controlsRef = useRef<React.ElementRef<typeof OrbitControls>>(null)
   const { camera } = useThree()
   const fpvActive = isFlying && mode === 'fpv'
+
+  // 環境切替時にスケールに合った俯瞰位置へ移動
+  useEffect(() => {
+    const controls = controlsRef.current
+    if (!controls) return
+    if (worldKind === 'real') {
+      camera.position.set(450, 380, 450)
+      ;(controls.target as THREE.Vector3).set(0, 0, 0)
+    } else {
+      camera.position.set(55, 55, 55)
+      ;(controls.target as THREE.Vector3).set(0, 15, 0)
+    }
+    controls.update()
+  }, [worldKind, camera])
 
   useFrame(() => {
     const drone = droneRef.current
@@ -79,7 +99,7 @@ export default function CameraRig({
       zoomSpeed={1.2}
       panSpeed={1.0}
       minDistance={5}
-      maxDistance={300}
+      maxDistance={maxDistance}
       minPolarAngle={0.1}
       maxPolarAngle={Math.PI / 2 - 0.05}
       target={new THREE.Vector3(0, 15, 0)}

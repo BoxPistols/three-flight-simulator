@@ -3,9 +3,11 @@
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  Alert,
   Box,
   Button,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -50,7 +52,11 @@ import {
   CAMERA_MODE_LABELS,
   type CameraMode,
 } from '@/features/viewer/CameraRig'
+import type { WorldSettings } from '@/features/viewer/Scene'
 import { BUILDING_AABBS } from '@/features/viewer/city'
+import WorldModePanel from '@/features/world/components/WorldModePanel'
+import { PRESET_LOCATIONS } from '@/features/world/locations'
+import type { RealWorldStatus } from '@/features/world/RealWorld'
 import ThemeToggle from '@/components/ThemeToggle'
 import ShortcutsDialog from '@/components/ShortcutsDialog'
 
@@ -99,6 +105,9 @@ export default function Home() {
   const redo = useFlightPlanStore((s) => s.redo)
   const canUndo = useFlightPlanStore((s) => s.past.length > 0)
   const canRedo = useFlightPlanStore((s) => s.future.length > 0)
+  const worldMode = useFlightPlanStore((s) => s.worldMode)
+  const locationId = useFlightPlanStore((s) => s.locationId)
+  const customLocations = useFlightPlanStore((s) => s.customLocations)
 
   const [mounted, setMounted] = useState(false)
   const [isFlying, setIsFlying] = useState(false)
@@ -109,15 +118,34 @@ export default function Home() {
   const [isResizing, setIsResizing] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [realWorldStatus, setRealWorldStatus] = useState<RealWorldStatus | null>(null)
 
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
+  // 環境設定（仮想都市 / 実在都市）を解決
+  const world: WorldSettings = useMemo(() => {
+    if (worldMode !== 'real') return { kind: 'virtual' }
+    const location =
+      [...PRESET_LOCATIONS, ...customLocations].find((l) => l.id === locationId) ??
+      PRESET_LOCATIONS[0]
+    return { kind: 'real', location }
+  }, [worldMode, locationId, customLocations])
+
+  // 障害物の簡易衝突判定は仮想都市モードのみ（実在都市はAABBを持たない）
   const collidingSegments = useMemo(
-    () => findCollidingSegments(waypoints, BUILDING_AABBS),
-    [waypoints]
+    () =>
+      world.kind === 'virtual'
+        ? findCollidingSegments(waypoints, BUILDING_AABBS)
+        : new Set<number>(),
+    [waypoints, world.kind]
   )
   const totals = useMemo(() => planTotals(waypoints), [waypoints])
+
+  // 環境が変わったら読み込み状態をリセット
+  useEffect(() => {
+    setRealWorldStatus(null)
+  }, [world])
 
   // ---- 初期化 ----
   useEffect(() => {
@@ -232,8 +260,13 @@ export default function Home() {
 
   // ---- 3Dシーンからのイベント ----
   const handleGroundClick = useCallback(
-    (x: number, z: number) => {
-      addWaypoint({ x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10, altitude: clickAltitude })
+    (x: number, z: number, groundY: number) => {
+      // 実在都市モードでは地表からの高さ（AGL）として扱う
+      addWaypoint({
+        x: Math.round(x * 10) / 10,
+        z: Math.round(z * 10) / 10,
+        altitude: Math.round(groundY + clickAltitude),
+      })
     },
     [addWaypoint, clickAltitude]
   )
@@ -332,6 +365,10 @@ export default function Home() {
             </IconButton>
           </Tooltip>
         </Box>
+
+        <Divider />
+
+        <WorldModePanel disabled={isFlying} />
 
         <Divider />
 
@@ -681,6 +718,7 @@ export default function Home() {
             isFlying={isFlying}
             cameraMode={cameraMode}
             mode={theme.palette.mode === 'dark' ? 'night' : 'day'}
+            world={world}
             selectedId={selectedId}
             collidingSegments={collidingSegments}
             onGroundClick={handleGroundClick}
@@ -692,9 +730,67 @@ export default function Home() {
             onWaypointDrag={dragWaypoint}
             onFlightUpdate={setFlightState}
             onFlightComplete={handleFlightComplete}
+            onRealWorldStatus={setRealWorldStatus}
           />
           {isFlying && (
             <FlightInfoPanel flightState={flightState} totals={totals} />
+          )}
+
+          {/* 実在都市モード: 読み込み状態と出典表記 */}
+          {world.kind === 'real' && (
+            <>
+              {(realWorldStatus === null ||
+                realWorldStatus.terrain === 'loading') && (
+                <Chip
+                  icon={<CircularProgress size={12} sx={{ ml: 0.5 }} />}
+                  label="実地形を読み込み中..."
+                  size="small"
+                  sx={{
+                    position: 'absolute',
+                    top: 14,
+                    left: 14,
+                    bgcolor: (t) => alpha(t.palette.background.paper, 0.85),
+                    backdropFilter: 'blur(8px)',
+                  }}
+                />
+              )}
+              {realWorldStatus?.terrain === 'error' && (
+                <Alert
+                  severity="error"
+                  sx={{ position: 'absolute', top: 14, left: 14, maxWidth: 420 }}
+                >
+                  実地形データ（国土地理院タイル）を取得できませんでした。
+                  ネットワーク接続を確認してください。
+                </Alert>
+              )}
+              {realWorldStatus?.terrain === 'ready' &&
+                realWorldStatus.buildings === 'error' && (
+                  <Alert
+                    severity="warning"
+                    sx={{ position: 'absolute', top: 14, left: 14, maxWidth: 420 }}
+                  >
+                    建物モデル（PLATEAU 3D Tiles）を取得できませんでした。
+                    地形のみ表示しています。
+                  </Alert>
+                )}
+              <Typography
+                variant="caption"
+                sx={{
+                  position: 'absolute',
+                  bottom: 6,
+                  left: 8,
+                  px: 0.75,
+                  py: 0.25,
+                  borderRadius: 1,
+                  fontSize: '0.62rem',
+                  color: '#fff',
+                  bgcolor: 'rgba(10, 17, 32, 0.55)',
+                  pointerEvents: 'none',
+                }}
+              >
+                地図・標高: 国土地理院 ／ 建物: Project PLATEAU（国土交通省）
+              </Typography>
+            </>
           )}
         </Box>
       </Box>
@@ -802,6 +898,18 @@ export default function Home() {
               </Paper>
             ))}
           </Box>
+          <Typography
+            variant="caption"
+            sx={{
+              display: 'block',
+              textAlign: 'center',
+              color: 'text.secondary',
+              mt: 1.5,
+            }}
+          >
+            🗾 「実在都市」モードでは、国土地理院の実地形と Project PLATEAU
+            の実建物の上で東京駅周辺などをフライトできます
+          </Typography>
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'center', pb: 3, gap: 2 }}>
           <Button

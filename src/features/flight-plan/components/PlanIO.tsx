@@ -6,11 +6,15 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload'
 import FileUploadIcon from '@mui/icons-material/FileUpload'
 import { parsePlan, serializePlan } from '../model'
 import { useFlightPlanStore } from '../store'
+import { PRESET_LOCATIONS } from '@/features/world/locations'
 
 /** フライトプランのJSONエクスポート / インポート */
 export default function PlanIO({ disabled }: { disabled?: boolean }) {
   const waypoints = useFlightPlanStore((s) => s.waypoints)
   const replacePlan = useFlightPlanStore((s) => s.replacePlan)
+  const worldMode = useFlightPlanStore((s) => s.worldMode)
+  const locationId = useFlightPlanStore((s) => s.locationId)
+  const customLocations = useFlightPlanStore((s) => s.customLocations)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [message, setMessage] = useState<{
     severity: 'success' | 'error'
@@ -18,7 +22,19 @@ export default function PlanIO({ disabled }: { disabled?: boolean }) {
   } | null>(null)
 
   const handleExport = () => {
-    const json = JSON.stringify(serializePlan(waypoints), null, 2)
+    // 実在都市モードではシーン原点の緯度経度を含めてジオリファレンスする
+    const location =
+      worldMode === 'real'
+        ? [...PRESET_LOCATIONS, ...customLocations].find((l) => l.id === locationId)
+        : undefined
+    const json = JSON.stringify(
+      serializePlan(
+        waypoints,
+        location ? { origin: { lat: location.lat, lon: location.lon } } : undefined
+      ),
+      null,
+      2
+    )
     const blob = new Blob([json], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')

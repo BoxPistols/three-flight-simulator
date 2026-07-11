@@ -23,13 +23,15 @@ export interface Waypoint {
 export interface FlightPlanFile {
   version: 1
   name?: string
+  /** 実在都市モードでのシーン原点（緯度経度）。座標のジオリファレンス用 */
+  origin?: { lat: number; lon: number }
   waypoints: Array<Omit<Waypoint, 'id'>>
 }
 
 export const SPEED_MIN_KMH = 5
 export const SPEED_MAX_KMH = 20
 export const ALTITUDE_MIN_M = 5
-export const ALTITUDE_MAX_M = 150
+export const ALTITUDE_MAX_M = 500
 export const DEFAULT_SPEED_KMH = 15
 export const DEFAULT_CLICK_ALTITUDE_M = 30
 
@@ -126,10 +128,11 @@ export const moveWaypointById = (
 /** エクスポート用のプレーンなJSONを生成する */
 export const serializePlan = (
   waypoints: Waypoint[],
-  name?: string
+  options?: { name?: string; origin?: { lat: number; lon: number } }
 ): FlightPlanFile => ({
   version: 1,
-  ...(name ? { name } : {}),
+  ...(options?.name ? { name: options.name } : {}),
+  ...(options?.origin ? { origin: options.origin } : {}),
   waypoints: waypoints.map(({ x, z, altitude, speed }) => ({
     x,
     z,

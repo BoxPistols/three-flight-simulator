@@ -18,6 +18,12 @@ import {
   DEFAULT_CLICK_ALTITUDE_M,
   type Waypoint,
 } from './model'
+import {
+  DEFAULT_LOCATION_ID,
+  type RealLocation,
+} from '@/features/world/locations'
+
+export type WorldMode = 'virtual' | 'real'
 
 /** 履歴として保持する最大ステップ数 */
 const MAX_HISTORY = 50
@@ -32,6 +38,12 @@ interface FlightPlanStore {
   past: Waypoint[][]
   /** Redo 用の未来スナップショット（新しいものが末尾） */
   future: Waypoint[][]
+  /** 環境: 仮想都市 / 実在都市（PLATEAU + 実地形） */
+  worldMode: WorldMode
+  /** 実在都市モードで選択中のロケーションID */
+  locationId: string
+  /** ユーザーが追加したカスタム地点 */
+  customLocations: RealLocation[]
 
   addWaypoint: (fields: Parameters<typeof createWaypoint>[0]) => Waypoint
   /** segmentIndex 番目のセグメントの途中に挿入する */
@@ -55,6 +67,11 @@ interface FlightPlanStore {
 
   undo: () => void
   redo: () => void
+
+  setWorldMode: (mode: WorldMode) => void
+  setLocationId: (id: string) => void
+  addCustomLocation: (location: RealLocation) => void
+  removeCustomLocation: (id: string) => void
 }
 
 /** 現在の waypoints を past に積み、future をクリアした差分を返す */
@@ -71,6 +88,9 @@ export const useFlightPlanStore = create<FlightPlanStore>()(
       clickAltitude: DEFAULT_CLICK_ALTITUDE_M,
       past: [],
       future: [],
+      worldMode: 'virtual',
+      locationId: DEFAULT_LOCATION_ID,
+      customLocations: [],
 
       addWaypoint: (fields) => {
         const waypoint = createWaypoint(fields)
@@ -166,12 +186,32 @@ export const useFlightPlanStore = create<FlightPlanStore>()(
           selectedId: null,
         })
       },
+
+      setWorldMode: (mode) => set({ worldMode: mode }),
+
+      setLocationId: (id) => set({ locationId: id }),
+
+      addCustomLocation: (location) =>
+        set((state) => ({
+          customLocations: [...state.customLocations, location],
+          locationId: location.id,
+        })),
+
+      removeCustomLocation: (id) =>
+        set((state) => ({
+          customLocations: state.customLocations.filter((l) => l.id !== id),
+          locationId:
+            state.locationId === id ? DEFAULT_LOCATION_ID : state.locationId,
+        })),
     }),
     {
       name: 'flight-simulator-plan',
       partialize: (state) => ({
         waypoints: state.waypoints,
         clickAltitude: state.clickAltitude,
+        worldMode: state.worldMode,
+        locationId: state.locationId,
+        customLocations: state.customLocations,
       }),
     }
   )

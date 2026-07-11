@@ -17,7 +17,7 @@ import {
 describe('createWaypoint', () => {
   it('速度と高度を範囲内にクランプする', () => {
     const wp = createWaypoint({ x: 0, z: 0, altitude: 1000, speed: 100 })
-    expect(wp.altitude).toBe(150)
+    expect(wp.altitude).toBe(500)
     expect(wp.speed).toBe(SPEED_MAX_KMH)
     expect(clampSpeed(0)).toBe(SPEED_MIN_KMH)
     expect(clampAltitude(-5)).toBe(5)
