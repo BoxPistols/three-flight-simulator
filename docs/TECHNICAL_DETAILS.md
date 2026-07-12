@@ -1,417 +1,140 @@
-# 技術的な詳細ドキュメント
+# 技術詳細
 
-## プロジェクト概要
+このドキュメントは現行アーキテクチャの技術的な詳細を説明します。見直しの経緯と設計判断は [ARCHITECTURE_UX_REVIEW.md](./ARCHITECTURE_UX_REVIEW.md) を参照してください。
 
-Three.js と React を使用した3Dフライトシミュレーターアプリケーション。ドローンのウェイポイントベースの自動飛行をシミュレートし、リアルタイムの3Dビジュアライゼーションを提供します。
+## アーキテクチャ概要
 
-## 技術スタック
-
-### コアフレームワーク
-- **Next.js 15.1.4** - Reactフレームワーク（App Router使用）
-- **React 19** - UIライブラリ
-- **TypeScript** - 型安全性
-
-### 3Dグラフィックス
-- **Three.js (r171)** - WebGL 3Dライブラリ
-- **@react-three/fiber** - ThreeのReactレンダラー
-- **@react-three/drei** - 便利なThreeヘルパー（OrbitControls等）
-
-### UIフレームワーク
-- **Material-UI v6** - UIコンポーネントライブラリ
-- **Emotion** - CSS-in-JSスタイリング
-- **Tailwind CSS** - ユーティリティファーストCSS
-
-## アーキテクチャ
-
-### ディレクトリ構造
+3層構造で、依存方向は常に「UI → ドメイン」の一方向です。
 
 ```
-src/
-├── app/                      # Next.js App Router
-│   ├── layout.tsx           # ルートレイアウト
-│   ├── page.tsx             # メインページ
-│   └── globals.css          # グローバルスタイル
-├── components/              # Reactコンポーネント
-│   ├── Scene.tsx            # 3Dシーンコンポーネント
-│   ├── WaypointEditor.tsx   # ウェイポイント編集UI
-│   └── ThemeToggle.tsx      # テーマ切替ボタン
-├── providers/               # Contextプロバイダー
-│   ├── ThemeProvider.tsx    # Material-UIテーマ管理
-│   └── EmotionProvider.tsx  # Emotionキャッシュ設定
-└── lib/                     # ユーティリティ
-    └── coordinateConverter.ts # 座標変換ロジック
+┌─────────────────────────────────────────────┐
+│ UI層                                         │
+│  app/page.tsx（配線）                         │
+│  flight-plan/components/（エディタ・サマリー）   │
+│  simulation/components/（フライト情報）         │
+│  viewer/（React Three Fiber シーン）           │
+├─────────────────────────────────────────────┤
+│ 状態層                                        │
+│  flight-plan/store.ts（Zustand + persist）    │
+├─────────────────────────────────────────────┤
+│ ドメイン層（純関数・UI非依存・テスト対象）          │
+│  flight-plan/model.ts   プラン操作・入出力       │
+│  simulation/engine.ts   飛行状態の計算          │
+│  simulation/collision.ts 障害物交差判定         │
+└─────────────────────────────────────────────┘
 ```
 
-## 主要コンポーネントの詳細
+## 座標系と単位
 
-### 1. Scene.tsx - 3Dシーンコンポーネント
+- シーン座標: **1単位 = 1メートル**
+- `Waypoint { x, z, altitude, speed }` — x=東西[m]、z=南北[m]、altitude=高度[m]、speed=巡航速度[km/h]
+- 3D空間へのマッピング: `[x, altitude, z]`（Three.js の Y-up に対応）
+- 速度は 5〜20 km/h、高度は 5〜150 m にクランプされる（`model.ts` の定数で変更可能）
 
-#### カラーパレット定義
-```typescript
-const COLORS = {
-  drone: {
-    body: '#3b82f6',      // 青（視認性重視）
-    propeller: '#1e293b', // ダークグレー
-  },
-  waypoint: {
-    start: '#10b981',     // エメラルドグリーン
-    end: '#ef4444',       // 赤
-    middle: '#f59e0b',    // アンバー
-  },
-  environment: {
-    ground: '#a3a380',    // オリーブグリーン系
-    sky: '#7dd3fc',       // 明るいスカイブルー
-  },
-  flightPath: '#3b82f6', // 青
-}
+## シミュレーションエンジン（simulation/engine.ts）
+
+「経過時間 t 秒におけるドローンの状態」を計算する純関数 `flightStateAt(waypoints, elapsedSec)` が中核です。
+
+- 各セグメントの所要時間 = 距離[m] ÷ 速度[m/s]（始点ウェイポイントの速度を使用）
+- 返り値 `FlightState` は位置・ヨー角・セグメント進捗・全体進捗（距離ベース）・残距離・経過時間を含む
+- 長さ0のセグメント（同一点の連続）は瞬時に通過する
+- `planTotals()` が総距離・総所要時間・高度範囲を返す（プランサマリーとフライト情報パネルで使用）
+
+ビューア側（`viewer/AnimatedDrone.tsx`）は `useFrame` で delta を積算し、`flightStateAt` の結果をドローンの Transform に反映するだけです。UIへの状態通知は 0.1 秒間隔に間引いて、飛行中の React 再レンダーを抑えています。
+
+## 障害物交差判定（simulation/collision.ts）
+
+- 建物は軸平行境界ボックス（AABB）として `viewer/city.ts` に定義
+- 線分×AABB の交差はスラブ法で判定
+- `findCollidingSegments()` が交差セグメント番号の集合を返し、
+  - ビューア: 該当セグメントを警告色（赤）で描画
+  - プランサマリー: 警告アラートを表示
+
+## 状態管理（flight-plan/store.ts）
+
+- Zustand + `persist` ミドルウェア（localStorage キー: `flight-simulator-plan`）
+- 永続化対象は `waypoints` と `clickAltitude` のみ（選択状態・履歴は揮発）
+- 配列操作のロジックは `model.ts` の純関数（`insertWaypointAt` / `moveWaypointById` など）に委譲
+- 飛行中フラグ・カメラモード・フライト状態は `page.tsx` のローカル state（セッション限りで良いため）
+
+### Undo / Redo
+
+- `past` / `future` の2スタックで実装（各最大50ステップ）
+- 全ての破壊的アクションは変更前に現在の `waypoints` を `past` に積み、`future` をクリア
+- ドラッグは `beginDrag()` で1度だけ履歴を積み、`dragWaypoint()` は履歴を積まずに位置更新（1ドラッグ=1 Undo単位）
+- `undo()` / `redo()` は Ctrl/⌘+Z・Ctrl/⌘+Shift+Z にバインド
+
+## 3Dドラッグ移動（viewer/WaypointMarkers.tsx）
+
+- マーカーの `onPointerDown` で `window` に pointermove/up リスナーを登録
+- 画面座標をカメラのレイと水平面（y=マーカー高度）の交点に射影して新しい X/Z を算出
+- 4px 未満の移動はクリック（＝選択）、それ以上はドラッグとして扱う
+- ドラッグ中は `CameraRig` の OrbitControls を `locked` で無効化
+- 位置は地面範囲にクランプし 0.1m 単位に丸める
+
+## ポストプロセス（viewer/Scene.tsx）
+
+- `@react-three/postprocessing` の `EffectComposer` で Bloom と Vignette を適用
+- 夜モードでは Bloom を強め（intensity 1.15 / 閾値 0.6）、窓明かり・航行灯・発光経路を強調
+- 昼モードは控えめ（intensity 0.3 / 閾値 0.85）にして白飛びを防ぐ
+
+## カメラ制御（viewer/CameraRig.tsx）
+
+| モード | 挙動 |
+|---|---|
+| 追従 | OrbitControls のターゲットがドローンに lerp 追従。ユーザーの回転・ズーム操作は有効 |
+| FPV | ドローン後方 6m・上方 2.5m から進行方向を注視。OrbitControls は無効化 |
+| 自由 | 通常の OrbitControls（飛行中も固定視点で観察可能） |
+
+## プランの入出力
+
+- エクスポート形式: `{ "version": 1, "waypoints": [{ x, z, altitude, speed }] }`
+- インポートは `model.ts` の `parsePlan()` が検証し、不正値（型不一致・NaN・未対応バージョン）は明示的なエラーメッセージで拒否
+
+## 実在都市モード（features/world/）
+
+仮想都市の代わりに、実在の地形と建物の上でプランニングできるモード。
+
+### データソース
+
+| レイヤー | ソース | 形式 |
+|---|---|---|
+| 地形（標高） | 国土地理院 標高タイル `dem_png`（z14） | PNG（RGB値から標高をデコード） |
+| 地表テクスチャ | 国土地理院 全国最新写真 `seamlessphoto`（z16） | JPEG |
+| 建築物 | Project PLATEAU 3D Tiles 配信（`assets.cms.plateau.reearth.io`） | 3D Tiles（b3dm） |
+
+タイルはすべて**ブラウザから直接**取得される（APIキー不要・CORS対応）。ロケーションのプリセットは配信URL検証済みの千代田区（東京駅・秋葉原・皇居）。他都市は PLATEAU データカタログの tileset.json URL を「カスタム地点」として登録できる。
+
+### 座標系の整合
+
+- シーン座標は選択ロケーション中心を原点とするローカルENU近似（`lib/geo.ts`）: +X=東、+Z=南、1単位=1m
+- 地形メッシュは原点±1.5kmを161×161頂点で構築。頂点ごとに緯度経度→DEMバイリニア補間で標高を求め、**原点標高を差し引いて y=0 を原点地表に正規化**する
+- 空中写真のUVは頂点の緯度経度をタイル座標へ射影して割り当てる（メルカトルの非線形性も厳密に一致）
+- PLATEAU 3D Tiles は ECEF（楕円体基準）配置のため、`ReorientationPlugin` でロケーション中心を Y-up 原点へ再配向し、**ジオイド高（関東≈36.7m）+ 原点標高**を持ち上げ量として渡すことで地形と足元を揃える
+- Draco 圧縮タイルに備えて DRACOLoader を `public/draco/` の自己ホストデコーダーで登録
+
+### 挙動の差分
+
+- 地表クリックの高度は**地表からの高さ（AGL）**として加算される（`groundY + クリック高度`）
+- 障害物の簡易衝突判定は仮想都市のみ（実在都市はAABBを持たないため無効化）
+- フォグ・星空半径・カメラのズーム上限・初期視点は環境スケールに応じて切替（`ENV_SCALE`）
+- エクスポートJSONに原点緯度経度（`origin`）を付与しジオリファレンスする
+- タイル取得失敗時は地形エラー / 建物警告のアラートを表示し、仮想都市へ戻れる
+
+## テスト
+
+```bash
+npm test
 ```
 
-#### 主要サブコンポーネント
+- `simulation/engine.test.ts` — 実単位の移動・進捗・境界条件（開始/終了/ゼロ長セグメント）
+- `simulation/collision.test.ts` — スラブ法の交差判定（貫通・上空通過・内部始点）
+- `flight-plan/model.test.ts` — プラン操作の不変性・クランプ・入出力ラウンドトリップ
+- `flight-plan/store.test.ts` — Undo/Redo の履歴挙動（分岐破棄・ドラッグ1単位化）
+- `lib/geo.test.ts` — 緯度経度⇔ローカルm変換・タイル座標・地理院DEMデコード
 
-**DroneModel**
-- ドローンの3Dモデル（本体+4つのプロペラ）
-- `forwardRef`でrefを受け取り、親から位置・回転を制御可能
-- 材質: `meshStandardMaterial` (PBRレンダリング)
+ドメイン層はDOM・Three.jsに依存しないため、Node環境で高速に実行できます。
 
-**WaypointMarkers**
-- ウェイポイントを球体で可視化
-- クリック可能（削除機能）
-- 開始点・中間点・終了点で色分け
-- Emissive（発光）効果で視認性向上
+## CI
 
-**FlightPath**
-- ウェイポイント間を線で接続
-- `BufferGeometry`で効率的に描画
-- 半透明表示（opacity: 0.8）
-
-**AnimatedDrone**
-- ドローンのアニメーション制御
-- `useFrame`フックで毎フレーム更新
-- ウェイポイント間の補間移動
-- 速度計算式:
-  ```typescript
-  const baseSpeed = 0.3
-  const increment = (speed * baseSpeed * visualSpeed * delta) / distance
-  ```
-
-**DroneCamera**
-- ドローン目線のカメラ（FPV: First Person View）
-- 飛行中のみアクティブ
-- `lerp`（線形補間）でスムーズな追従
-  - カメラ位置: `lerp(0.2)`
-  - カメラ向き: `slerp(0.2)` (球面線形補間)
-- オフセット: `(0, 0.5, -1.5)` - ドローンの後ろ上方
-
-**CityBuildings**
-- 16個の建物を配置
-- 高層・中層・低層・住宅で分類
-- グレー系の統一パレットで描画
-
-**ClickableGround**
-- 地面をクリックしてウェイポイント追加
-- ドラッグ検出（閾値: 0.1単位以上の移動）
-- クリック時の座標をY+50mに設定
-
-#### パフォーマンス最適化
-
-1. **ジオメトリの再利用**
-   - 同じ形状の建物は複数描画しても効率的
-
-2. **条件付きレンダリング**
-   - FlightPathは2点以上のウェイポイントがある時のみ表示
-
-3. **useFrame最適化**
-   - 飛行中のみアニメーション計算
-   - 早期リターンで不要な計算をスキップ
-
-### 2. page.tsx - メインUIページ
-
-#### 状態管理
-```typescript
-const [waypoints, setWaypoints] = useState<Waypoint[]>([])
-const [isFlying, setIsFlying] = useState(false)
-const [mounted, setMounted] = useState(false)
-```
-
-#### デザインパターン
-
-**グラデーション背景**
-```typescript
-background: (theme) =>
-  theme.palette.mode === 'dark'
-    ? 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)'
-    : 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)'
-```
-
-**動的スタイリング**
-- 飛行状態に応じたUI変化
-- LinearProgressで進行状況表示
-- パルスアニメーションでステータス表示
-
-**レスポンシブデザイン**
-- サイドパネル: 固定幅320px
-- メインエリア: `flex: 1`で残りを占有
-
-### 3. ThemeProvider.tsx - テーマ管理
-
-#### カラーパレット
-```typescript
-palette: {
-  primary: {
-    main: '#3b82f6',    // ライトモード
-    main: '#60a5fa',    // ダークモード
-  },
-  background: {
-    default: '#f8fafc', // ライトモード
-    default: '#0f172a', // ダークモード
-    paper: '#ffffff',   // ライトモード
-    paper: '#1e293b',   // ダークモード
-  },
-}
-```
-
-#### アニメーション・トランジション
-
-**ボタンホバー効果**
-```typescript
-'&:hover': {
-  transform: 'translateY(-1px)',
-  boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)',
-}
-```
-
-**グラデーションボタン**
-```typescript
-containedPrimary: {
-  background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-}
-```
-
-**スムーズトランジション**
-- すべてのコンポーネントで`transition`プロパティ設定
-- イージング関数: `cubic-bezier(0.4, 0, 0.2, 1)`
-- 時間: 0.2s〜0.3s
-
-### 4. coordinateConverter.ts - 座標変換
-
-#### 座標系の定義
-
-**緯度経度 → 3D座標**
-- 簡易平面投影（メルカトル図法風）
-- 基準点からの相対位置を計算
-
-```typescript
-export function convertWaypointsTo3D(waypoints: Waypoint[]) {
-  // 基準点（最初のウェイポイント）を取得
-  const reference = waypoints[0]
-
-  return waypoints.map(wp => ({
-    position: [
-      (wp.longitude - reference.longitude) * scaleFactor,
-      wp.altitude,
-      (wp.latitude - reference.latitude) * scaleFactor
-    ] as [number, number, number]
-  }))
-}
-```
-
-**3D座標 → 緯度経度**
-```typescript
-export function convert3DToLatLon(
-  x: number,
-  y: number,
-  z: number,
-  reference: { latitude: number; longitude: number }
-) {
-  return {
-    latitude: reference.latitude + z / scaleFactor,
-    longitude: reference.longitude + x / scaleFactor,
-    altitude: y
-  }
-}
-```
-
-## データフロー
-
-### ウェイポイント追加フロー
-
-1. **3D画面クリック**
-   ```
-   ClickableGround.onPointerUp
-   → Scene.handleGroundClick
-   → page.handleAddWaypointFromClick
-   → convert3DToLatLon (座標変換)
-   → setWaypoints (状態更新)
-   ```
-
-2. **手動入力**
-   ```
-   WaypointEditor.addWaypoint
-   → setWaypoints
-   ```
-
-### フライト実行フロー
-
-1. **開始**
-   ```
-   page.handleStartFlight
-   → setIsFlying(true)
-   → AnimatedDrone.useFrame (開始)
-   → DroneCamera.useFrame (開始)
-   ```
-
-2. **アニメーション**
-   ```
-   useFrame (毎フレーム)
-   → 速度計算
-   → 位置補間 (lerp)
-   → 回転計算 (atan2)
-   → ドローン更新
-   → カメラ追従
-   ```
-
-3. **停止**
-   ```
-   最終ウェイポイント到達 or ユーザー停止
-   → onFlightComplete
-   → page.handleFlightComplete
-   → setIsFlying(false)
-   ```
-
-## レンダリングパイプライン
-
-### Three.jsレンダリング
-
-1. **Canvas初期化**
-   - `@react-three/fiber`の`<Canvas>`コンポーネント
-   - カメラ設定: `position: [20, 25, 20], fov: 45`
-
-2. **ライティング**
-   ```tsx
-   <ambientLight intensity={0.6} />
-   <directionalLight position={[10, 10, 10]} intensity={1} />
-   <pointLight position={[0, 10, 0]} intensity={0.5} />
-   ```
-
-3. **マテリアル**
-   - `meshStandardMaterial`: PBR (Physically Based Rendering)
-   - `roughness`, `metalness`で質感表現
-   - `emissive`で発光効果
-
-### Material-UIレンダリング
-
-1. **CssBaseline**
-   - ブラウザのデフォルトスタイルをリセット
-   - グローバルスタイル適用
-
-2. **テーマコンテキスト**
-   - ライト/ダークモードの切り替え
-   - localStorageに保存
-   - システム設定を検出
-
-## パフォーマンス考慮事項
-
-### 最適化ポイント
-
-1. **React最適化**
-   - `dynamic import`でScene.tsxを遅延ロード
-   - `ssr: false`でSSRを無効化（Three.jsはクライアントサイドのみ）
-   - `useEffect`でマウント状態を管理
-
-2. **Three.js最適化**
-   - `BufferGeometry`で効率的なジオメトリ
-   - `useFrame`内で不要な計算を削減
-   - 条件付きレンダリングでオブジェクト数を削減
-
-3. **レンダリング最適化**
-   - `useRef`で再レンダリングを防止
-   - `useMemo`でメモ化（必要に応じて）
-   - アニメーション中の状態更新を最小化
-
-### メモリ管理
-
-- ジオメトリとマテリアルの適切な破棄
-- イベントリスナーのクリーンアップ
-- `useEffect`のreturnでクリーンアップ関数を実装
-
-## カスタマイズガイド
-
-### 配色変更
-
-`Scene.tsx`のCOLORSオブジェクトを編集:
-```typescript
-const COLORS = {
-  drone: {
-    body: '#your-color',
-  },
-  // ...
-}
-```
-
-`ThemeProvider.tsx`のpaletteを編集:
-```typescript
-palette: {
-  primary: {
-    main: '#your-color',
-  },
-}
-```
-
-### アニメーション速度調整
-
-`Scene.tsx`のAnimatedDroneコンポーネント:
-```typescript
-const baseSpeed = 0.3  // この値を変更
-```
-
-### カメラ追従の調整
-
-`Scene.tsx`のDroneCameraコンポーネント:
-```typescript
-camera.position.lerp(cameraPosition, 0.2)  // 0.1〜0.5で調整
-```
-
-## トラブルシューティング
-
-### よくある問題
-
-1. **3Dシーンが表示されない**
-   - ブラウザのWebGL対応を確認
-   - コンソールエラーを確認
-   - `next.config.ts`のtranspilePackages設定を確認
-
-2. **アニメーションが遅い**
-   - `baseSpeed`を大きくする
-   - ウェイポイント数を減らす
-   - ブラウザのハードウェアアクセラレーションを有効化
-
-3. **テーマが切り替わらない**
-   - localStorageをクリア
-   - ブラウザキャッシュをクリア
-   - ThemeProviderのマウント状態を確認
-
-## 今後の拡張案
-
-### 機能追加
-- [ ] ウェイポイントのドラッグ&ドロップ移動
-- [ ] 複数ドローンの同時飛行
-- [ ] 地形の追加（山、川など）
-- [ ] 天候エフェクト（雨、霧など）
-- [ ] カメラアングルの切り替え
-- [ ] フライトパスのエクスポート/インポート
-
-### UI/UX改善
-- [ ] レスポンシブデザインの強化
-- [ ] タッチデバイス対応の改善
-- [ ] キーボードショートカット
-- [ ] ツアーガイド/オンボーディング
-
-### パフォーマンス
-- [ ] WebWorkerでアニメーション計算
-- [ ] LOD (Level of Detail) システム
-- [ ] オフスクリーンレンダリング
-- [ ] インスタンシング（同じモデルの大量配置）
-
-## まとめ
-
-このプロジェクトは、モダンなWebフロントエンド技術を活用した3Dインタラクティブアプリケーションです。Three.js、React、Material-UIを組み合わせることで、高品質なビジュアルと使いやすいUIを実現しています。
+`.github/workflows/ci.yml` が push / PR ごとに lint → typecheck → test → build を実行します。
