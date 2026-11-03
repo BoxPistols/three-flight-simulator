@@ -101,10 +101,12 @@ src/
 
 設計原則: **飛行計算はUIに依存しない純関数**（`simulation/engine.ts`）に分離されており、ビューアは毎フレームその結果を描画するだけです。座標・速度・時間はすべて実単位で扱います。
 
-## 🤝 コントリビューション
+## 🤝 不具合報告・提案
 
-プルリクエストを歓迎します。CI（lint / typecheck / test / build）が通ることを確認してください。
+- 不具合の報告や機能の提案は [Issue](https://github.com/BoxPistols/three-flight-simulator/issues) で受け付けます
+- コードのプルリクエストは受け付けていません（このリポジトリのコードは All rights reserved のため）
 
 ## 📄 ライセンス
 
-MIT
+- **このリポジトリのコード**: All rights reserved（© Ito Atsushi / BoxPistols）。GitHub 上での閲覧・参照は自由ですが、事前の書面による許可のない利用・複製・改変・再配布・転用・商用転載は禁止します。全文は [LICENSE](./LICENSE)、問い合わせは https://asagiri-design.carrd.co/ から
+- **第三者のコード・データ**: それぞれのライセンス・利用条件に従います。利用ライブラリは「技術スタック」、地形・空中写真（国土地理院）と建築物（Project PLATEAU）の出典は同じ節の「データソース」を参照してください
