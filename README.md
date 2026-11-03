@@ -101,9 +101,10 @@ src/
 
 設計原則: **飛行計算はUIに依存しない純関数**（`simulation/engine.ts`）に分離されており、ビューアは毎フレームその結果を描画するだけです。座標・速度・時間はすべて実単位で扱います。
 
-## 🤝 コントリビューション
+## 🤝 不具合報告・提案
 
-プルリクエストを歓迎します。CI（lint / typecheck / test / build）が通ることを確認してください。
+- 不具合の報告や機能の提案は [Issue](https://github.com/BoxPistols/three-flight-simulator/issues) で受け付けます
+- コードのプルリクエストは受け付けていません（このリポジトリのコードは All rights reserved のため）
 
 ## 📄 ライセンス
 
