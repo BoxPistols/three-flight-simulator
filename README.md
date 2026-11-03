@@ -107,4 +107,5 @@ src/
 
 ## 📄 ライセンス
 
-MIT
+- **このリポジトリのコード**: All rights reserved（© Ito Atsushi / BoxPistols）。GitHub 上での閲覧・参照は自由ですが、事前の書面による許可のない利用・複製・改変・再配布・転用・商用転載は禁止します。全文は [LICENSE](./LICENSE)、問い合わせは https://asagiri-design.carrd.co/ から
+- **第三者のコード・データ**: それぞれのライセンス・利用条件に従います。利用ライブラリは「技術スタック」、地形・空中写真（国土地理院）と建築物（Project PLATEAU）の出典は同じ節の「データソース」を参照してください
